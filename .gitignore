@@ -2,3 +2,7 @@
 /db/**/bin/
 /db/**/obj/
 *.dacpac
+
+# API build artifacts
+api/**/bin/
+api/**/obj/

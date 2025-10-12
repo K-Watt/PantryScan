@@ -8,6 +8,7 @@
     <ModelCollation>1033, CI</ModelCollation>
   </PropertyGroup>
   <ItemGroup>
+    <None Include="..\publish\local.publish.xml" />
     <None Include=".vscode\tasks.json" />
   </ItemGroup>
   <Target Name="BeforeBuild">
