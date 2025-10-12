@@ -1,0 +1,4 @@
+# SQL Database Projects
+/db/**/bin/
+/db/**/obj/
+*.dacpac
