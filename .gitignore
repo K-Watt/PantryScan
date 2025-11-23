@@ -6,3 +6,21 @@
 # API build artifacts
 api/**/bin/
 api/**/obj/
+
+# General build outputs
+**/bin/
+**/obj/
+
+# Visual Studio and editor files
+.vs/
+*.user
+*.suo
+
+# Logs
+*.log
+
+# Packages
+packages/
+
+# Local publish artifacts
+db/publish/
