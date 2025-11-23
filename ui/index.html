@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PantryScan UI</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --accent: #2563eb;
+      --accent-2: #38bdf8;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --danger: #ef4444;
+      --success: #22c55e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: radial-gradient(circle at 10% 20%, #1e293b 0%, #0f172a 40%, #0b1221 90%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px;
+    }
+
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1d4ed8, #06b6d4);
+      padding: 20px 24px;
+      border-radius: 14px;
+      box-shadow: 0 10px 40px rgba(37, 99, 235, 0.35);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    header h1 { font-size: 1.7rem; letter-spacing: 0.02em; }
+
+    header p { color: rgba(255,255,255,0.82); }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 18px;
+      border-radius: 12px;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.35);
+    }
+
+    .panel h2 {
+      font-size: 1.1rem;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: #0b1221;
+      color: var(--text);
+      font-size: 1rem;
+      transition: border 0.2s, box-shadow 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.25);
+    }
+
+    .grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    @media (min-width: 900px) {
+      .grid.grid-2 {
+        grid-template-columns: 1.05fr 1fr;
+      }
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 14px;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+      transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s;
+    }
+
+    button.secondary { background: #1f2937; color: var(--text); }
+    button.danger { background: var(--danger); }
+
+    button:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(37, 99, 235, 0.4); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; transform: none; }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+      margin-bottom: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+
+    th, td {
+      padding: 12px 10px;
+      text-align: left;
+    }
+
+    th {
+      background: rgba(255,255,255,0.04);
+      color: var(--muted);
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    tr + tr td { border-top: 1px solid rgba(255,255,255,0.04); }
+
+    .muted { color: var(--muted); font-size: 0.95rem; }
+
+    .status {
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .status.info { background: rgba(56, 189, 248, 0.08); color: #7dd3fc; }
+    .status.success { background: rgba(34, 197, 94, 0.08); color: #86efac; }
+    .status.error { background: rgba(239, 68, 68, 0.1); color: #fecdd3; }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>PantryScan Inventory</h1>
+        <p>Lightweight UI that talks to the .NET API (GET /items, POST /items)</p>
+      </div>
+      <div style="min-width: 260px; width: 100%; max-width: 420px;">
+        <label for="apiBase">API base URL</label>
+        <input id="apiBase" placeholder="http://localhost:5000" />
+      </div>
+    </header>
+
+    <div class="grid grid-2">
+      <section class="panel">
+        <h2>Add item</h2>
+        <div class="grid">
+          <div>
+            <label for="name">Name</label>
+            <input id="name" autocomplete="off" />
+          </div>
+          <div>
+            <label for="quantity">Quantity</label>
+            <input id="quantity" type="number" min="0" step="1" />
+          </div>
+        </div>
+        <div class="controls" style="margin-top: 12px;">
+          <button id="addBtn">Add to pantry</button>
+          <button id="resetBtn" class="secondary" type="button">Reset</button>
+        </div>
+        <div id="formStatus"></div>
+      </section>
+
+      <section class="panel">
+        <h2>About this page</h2>
+        <p class="muted">Use this as a starter UI for the PantryScan API. The API is CORS-enabled, so you can load this file locally and hit the API running via dotnet run.</p>
+        <p class="muted" style="margin-top: 10px;">Actions implemented:</p>
+        <ul style="margin-left: 16px; margin-top: 6px; color: var(--text); line-height: 1.6;">
+          <li>List items (GET /items)</li>
+          <li>Add item (POST /items)</li>
+          <li>Basic validation and error display</li>
+        </ul>
+        <p class="muted" style="margin-top: 10px;">Tip: if your API runs on HTTPS, set the base URL accordingly (for example, https://localhost:5001).</p>
+      </section>
+    </div>
+
+    <section class="panel">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <h2 style="margin:0;">Inventory</h2>
+        <div class="controls" style="margin:0;">
+          <span class="pill" id="countPill">0 items</span>
+          <button id="refreshBtn" class="secondary">Refresh</button>
+        </div>
+      </div>
+      <div id="tableWrap" style="margin-top: 6px;">
+        <div class="muted">Loading items...</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const apiBaseInput = document.getElementById("apiBase");
+    const nameInput = document.getElementById("name");
+    const qtyInput = document.getElementById("quantity");
+    const addBtn = document.getElementById("addBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const tableWrap = document.getElementById("tableWrap");
+    const countPill = document.getElementById("countPill");
+    const formStatus = document.getElementById("formStatus");
+
+    const STORAGE_KEY = "pantryscan_api_base";
+    const DEFAULT_API = "http://localhost:5000";
+
+    function loadApiBase() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      apiBaseInput.value = stored || DEFAULT_API;
+    }
+
+    function persistApiBase() {
+      localStorage.setItem(STORAGE_KEY, apiBaseInput.value.trim());
+    }
+
+    apiBaseInput.addEventListener("change", persistApiBase);
+    apiBaseInput.addEventListener("blur", persistApiBase);
+
+    function status(el, message, type = "info") {
+      if (!message) {
+        el.innerHTML = "";
+        return;
+      }
+      el.innerHTML = `<div class="status ${type}">${message}</div>`;
+    }
+
+    async function fetchItems() {
+      status(tableWrap, "Loading items...", "info");
+      try {
+        const res = await fetch(`${apiBaseInput.value.trim()}/items`);
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        const data = await res.json();
+        renderTable(data);
+      } catch (err) {
+        console.error(err);
+        status(tableWrap, `Could not load items. ${err.message}`, "error");
+      }
+    }
+
+    function renderTable(items) {
+      if (!Array.isArray(items) || items.length === 0) {
+        tableWrap.innerHTML = `<div class="muted">No items found. Add your first item above.</div>`;
+        countPill.textContent = "0 items";
+        return;
+      }
+
+      const rows = items.map(it => `
+        <tr>
+          <td>${it.itemId ?? it.ItemId ?? "-"}</td>
+          <td>${it.name ?? it.Name ?? "-"}</td>
+          <td>${it.quantity ?? it.Quantity ?? 0}</td>
+          <td class="muted">${formatDate(it.createdAt || it.CreatedAt)}</td>
+        </tr>
+      `).join("");
+
+      tableWrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Quantity</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      countPill.textContent = items.length === 1 ? "1 item" : `${items.length} items`;
+    }
+
+    function formatDate(value) {
+      if (!value) return "-";
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? value : d.toLocaleString();
+    }
+
+    async function addItem() {
+      const base = apiBaseInput.value.trim();
+      const name = nameInput.value.trim();
+      const quantity = Number(qtyInput.value || 0);
+
+      if (!name) {
+        status(formStatus, "Name is required.", "error");
+        nameInput.focus();
+        return;
+      }
+
+      if (Number.isNaN(quantity) || quantity < 0) {
+        status(formStatus, "Quantity must be zero or more.", "error");
+        qtyInput.focus();
+        return;
+      }
+
+      addBtn.disabled = true;
+      status(formStatus, "Saving item...", "info");
+
+      try {
+        const res = await fetch(`${base}/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, quantity })
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || `Request failed: ${res.status}`);
+        }
+
+        status(formStatus, "Item added.", "success");
+        nameInput.value = "";
+        qtyInput.value = "";
+        fetchItems();
+      } catch (err) {
+        console.error(err);
+        status(formStatus, err.message, "error");
+      } finally {
+        addBtn.disabled = false;
+      }
+    }
+
+    function resetForm() {
+      nameInput.value = "";
+      qtyInput.value = "";
+      status(formStatus, "");
+    }
+
+    addBtn.addEventListener("click", addItem);
+    refreshBtn.addEventListener("click", fetchItems);
+    resetBtn.addEventListener("click", resetForm);
+    qtyInput.addEventListener("keypress", (e) => { if (e.key === "Enter") addItem(); });
+    nameInput.addEventListener("keypress", (e) => { if (e.key === "Enter") addItem(); });
+
+    loadApiBase();
+    fetchItems();
+  </script>
+</body>
+</html>
