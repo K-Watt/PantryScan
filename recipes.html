@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PantryScan – Recipes</title>
+  <style>
+    /* ── Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+      color: #ffffff;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top header bar ── */
+    .top-bar {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .top-bar-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .top-bar-brand .logo {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      color: #fff;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
+    }
+
+    .top-bar-nav {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .top-nav-link {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.85);
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      text-decoration: none;
+    }
+
+    .top-nav-link:hover { background: rgba(255,255,255,0.12); color: #fff; }
+    .top-nav-link.active {
+      background: rgba(255,255,255,0.18);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* ── Below-header action bar ── */
+    .action-bar {
+      background: rgba(15, 20, 25, 0.9);
+      border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+      padding: 10px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .action-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-add-recipe {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-add-recipe:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(59,130,246,0.4);
+    }
+
+    .btn-add-recipe .caret {
+      font-size: 0.75rem;
+      opacity: 0.8;
+    }
+
+    .recipe-count-badge {
+      background: rgba(59, 130, 246, 0.18);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      border-radius: 999px;
+      padding: 5px 14px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #93c5fd;
+    }
+
+    .draft-count {
+      color: rgba(255,255,255,0.45);
+      font-size: 0.88rem;
+    }
+
+    .action-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .view-toggle {
+      display: flex;
+      background: rgba(30, 64, 175, 0.2);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .view-btn {
+      background: transparent;
+      border: none;
+      color: #93c5fd;
+      padding: 7px 16px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .view-btn.active {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+    }
+
+    .view-btn:hover:not(.active) { background: rgba(59,130,246,0.15); }
+
+    /* ── Main layout ── */
+    .main-layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Filter sidebar ── */
+    .filter-sidebar {
+      width: 260px;
+      min-width: 260px;
+      background: rgba(10, 14, 20, 0.7);
+      border-right: 1px solid rgba(59, 130, 246, 0.15);
+      overflow-y: auto;
+      padding: 18px 14px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* Search input */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 10px;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      background: rgba(30, 64, 175, 0.12);
+      border: 2px solid rgba(59, 130, 246, 0.25);
+      border-radius: 10px;
+      padding: 10px 14px 10px 36px;
+      color: #fff;
+      font-size: 0.93rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .search-wrap input::placeholder { color: rgba(147,197,253,0.55); }
+    .search-wrap input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.12);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(147,197,253,0.6);
+      pointer-events: none;
+      font-size: 1rem;
+    }
+
+    /* Filter accordion group */
+    .filter-group {
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .filter-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-size: 0.93rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.8);
+      border-radius: 8px;
+      transition: background 0.18s;
+      user-select: none;
+    }
+
+    .filter-group-header:hover { background: rgba(59,130,246,0.1); }
+
+    .filter-group-header .chevron {
+      font-size: 0.75rem;
+      color: #60a5fa;
+      transition: transform 0.25s;
+    }
+
+    .filter-group.open .chevron { transform: rotate(180deg); }
+
+    .filter-group-body {
+      display: none;
+      padding: 6px 12px 10px;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .filter-group.open .filter-group-body { display: flex; }
+
+    .filter-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.88rem;
+      color: #93c5fd;
+      cursor: pointer;
+      padding: 4px 2px;
+      border-radius: 6px;
+      transition: color 0.15s;
+    }
+
+    .filter-option:hover { color: #fff; }
+
+    .filter-option input[type="checkbox"] {
+      accent-color: #3b82f6;
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+    }
+
+    /* Star rating filter */
+    .star-filter { display: flex; gap: 4px; align-items: center; margin-top: 4px; }
+    .star-filter .star { font-size: 1.2rem; color: rgba(147,197,253,0.35); cursor: pointer; transition: color 0.15s; }
+    .star-filter .star.lit, .star-filter .star:hover { color: #f59e0b; }
+
+    /* Range input */
+    .range-wrap { padding: 4px 2px; }
+    .range-wrap input[type="range"] {
+      width: 100%;
+      accent-color: #3b82f6;
+    }
+    .range-labels { display: flex; justify-content: space-between; font-size: 0.78rem; color: rgba(147,197,253,0.6); margin-top: 2px; }
+
+    /* Sidebar footer link */
+    .sidebar-planner-btn {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, rgba(37,99,235,0.3), rgba(30,64,175,0.4));
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #93c5fd;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, color 0.2s;
+      margin-top: 18px;
+    }
+
+    .sidebar-planner-btn:hover { background: linear-gradient(135deg, rgba(59,130,246,0.35), rgba(37,99,235,0.45)); color: #fff; }
+
+    /* ── Recipe area ── */
+    .recipe-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 28px 40px;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px 20px;
+      color: rgba(147,197,253,0.6);
+    }
+
+    .empty-state .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 22px;
+      opacity: 0.5;
+    }
+
+    .empty-state h2 {
+      font-size: 1.4rem;
+      color: #60a5fa;
+      margin-bottom: 10px;
+    }
+
+    .empty-state p {
+      font-size: 0.97rem;
+      max-width: 380px;
+      line-height: 1.7;
+    }
+
+    .empty-state .btn-empty {
+      margin-top: 28px;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff;
+      border: none;
+      padding: 12px 26px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .empty-state .btn-empty:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(59,130,246,0.4);
+    }
+
+    /* Course section header */
+    .course-section { margin-bottom: 36px; }
+
+    .course-heading {
+      font-size: 1rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.5);
+      margin-bottom: 18px;
+      letter-spacing: 0.3px;
+    }
+
+    .course-heading span {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* Recipe grid */
+    .recipe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    /* Recipe card */
+    .recipe-card {
+      background: linear-gradient(160deg, rgba(22, 30, 48, 0.95), rgba(14, 20, 32, 0.98));
+      border: 1px solid rgba(59, 130, 246, 0.18);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .recipe-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 14px 40px rgba(37, 99, 235, 0.25);
+      border-color: rgba(59, 130, 246, 0.45);
+    }
+
+    /* Card image */
+    .card-image {
+      position: relative;
+      width: 100%;
+      height: 175px;
+      background: rgba(30, 64, 175, 0.15);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .card-image .img-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      color: rgba(147,197,253,0.35);
+      font-size: 0.83rem;
+    }
+
+    .card-image .img-placeholder .ph-icon { font-size: 2.6rem; }
+
+    /* Card number badge */
+    .card-number {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.75);
+      text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+    }
+
+    /* Three-dot menu */
+    .card-menu-btn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.45);
+      border: none;
+      border-radius: 6px;
+      padding: 3px 8px;
+      color: #fff;
+      font-size: 1rem;
+      cursor: pointer;
+      line-height: 1;
+      letter-spacing: 0.5px;
+      transition: background 0.2s;
+    }
+
+    .card-menu-btn:hover { background: rgba(59,130,246,0.55); }
+
+    /* Star rating on image */
+    .card-stars {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      display: flex;
+      gap: 1px;
+    }
+
+    .card-stars .s { font-size: 1rem; }
+    .card-stars .s.lit { color: #f59e0b; }
+    .card-stars .s.dim { color: rgba(255,255,255,0.25); }
+
+    /* Card action icons (share/favorite) */
+    .card-action-icons {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      gap: 6px;
+    }
+
+    .card-icon-btn {
+      background: rgba(0,0,0,0.4);
+      border: none;
+      border-radius: 6px;
+      padding: 4px 7px;
+      color: rgba(255,255,255,0.65);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .card-icon-btn:hover { background: rgba(59,130,246,0.5); color: #fff; }
+
+    /* Card body */
+    .card-body {
+      padding: 14px 16px 8px;
+    }
+
+    .card-title {
+      font-size: 1.02rem;
+      font-weight: 700;
+      color: #e5e7eb;
+      line-height: 1.35;
+      margin-bottom: 14px;
+    }
+
+    /* Card footer */
+    .card-footer {
+      padding: 0 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card-source {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(30, 64, 175, 0.2);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 0.78rem;
+      color: #7dd3fc;
+      width: fit-content;
+      transition: background 0.2s;
+    }
+
+    .card-source:hover { background: rgba(59,130,246,0.25); }
+
+    .card-source .src-icon { font-size: 0.7rem; opacity: 0.75; }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.22);
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 0.76rem;
+      color: #93c5fd;
+    }
+
+    .tag .tag-icon { font-size: 0.7rem; }
+
+    /* ── Add recipe modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: linear-gradient(160deg, #0f1a2e, #111827);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 16px;
+      padding: 30px 32px;
+      width: 100%;
+      max-width: 520px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+      animation: slideUp 0.25s ease;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+
+    .modal-header h2 {
+      color: #60a5fa;
+      font-size: 1.25rem;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.2s;
+    }
+
+    .modal-close:hover { color: #fff; }
+
+    .modal-form .form-group { margin-bottom: 18px; }
+
+    .modal-form label {
+      display: block;
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: #93c5fd;
+      margin-bottom: 6px;
+    }
+
+    .modal-form input,
+    .modal-form select {
+      width: 100%;
+      background: rgba(30,64,175,0.12);
+      border: 2px solid rgba(59,130,246,0.25);
+      border-radius: 10px;
+      padding: 11px 14px;
+      color: #fff;
+      font-size: 0.95rem;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .modal-form input:focus,
+    .modal-form select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: rgba(59,130,246,0.12);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+
+    .modal-form input::placeholder { color: rgba(147,197,253,0.5); }
+
+    .modal-form select option { background: #0f1a2e; }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .btn-modal-cancel {
+      background: rgba(55,65,81,0.6);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 10px;
+      color: rgba(255,255,255,0.7);
+      padding: 10px 20px;
+      font-size: 0.93rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-modal-cancel:hover { background: rgba(75,85,99,0.7); color: #fff; }
+
+    .btn-modal-submit {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      padding: 10px 24px;
+      font-size: 0.93rem;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-modal-submit:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(59,130,246,0.35);
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15,20,25,0.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.35); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.6); }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .filter-sidebar { display: none; }
+      .recipe-area { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Top bar ── -->
+  <header class="top-bar">
+    <div class="top-bar-brand">
+      <span class="logo">🥫 PantryScan</span>
+    </div>
+    <nav class="top-bar-nav">
+      <a href="index.html" class="top-nav-link">🏠 Inventory</a>
+      <a href="recipes.html"  class="top-nav-link active">📖 Recipes</a>
+      <a href="ui/index.html" class="top-nav-link">📋 Pantry</a>
+    </nav>
+  </header>
+
+  <!-- ── Action bar ── -->
+  <div class="action-bar">
+    <div class="action-bar-left">
+      <button class="btn-add-recipe" id="openAddModal">
+        ＋ Add Recipe
+        <span class="caret">▾</span>
+      </button>
+      <span class="recipe-count-badge" id="recipeBadge">0 Recipes</span>
+      <span class="draft-count" id="draftBadge"></span>
+    </div>
+    <div class="action-bar-right">
+      <div class="view-toggle">
+        <button class="view-btn active" id="gridViewBtn" onclick="setView('grid')">Grid</button>
+        <button class="view-btn"        id="tableViewBtn" onclick="setView('table')">Table</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Main layout ── -->
+  <div class="main-layout">
+
+    <!-- ── Filter sidebar ── -->
+    <aside class="filter-sidebar">
+
+      <!-- Search -->
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search Recipes" oninput="applyFilters()" />
+      </div>
+
+      <!-- Sort by -->
+      <div class="filter-group open" id="fg-sort">
+        <div class="filter-group-header" onclick="toggleGroup('fg-sort')">
+          Sort by…
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body">
+          <label class="filter-option">
+            <input type="radio" name="sort" value="course" checked onchange="applyFilters()" /> Course
+          </label>
+          <label class="filter-option">
+            <input type="radio" name="sort" value="name" onchange="applyFilters()" /> Name A–Z
+          </label>
+          <label class="filter-option">
+            <input type="radio" name="sort" value="rating" onchange="applyFilters()" /> Rating
+          </label>
+          <label class="filter-option">
+            <input type="radio" name="sort" value="newest" onchange="applyFilters()" /> Newest
+          </label>
+        </div>
+      </div>
+
+      <!-- Course filter -->
+      <div class="filter-group" id="fg-course">
+        <div class="filter-group-header" onclick="toggleGroup('fg-course')">
+          Course
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body" id="courseFilters">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Cuisine -->
+      <div class="filter-group" id="fg-cuisine">
+        <div class="filter-group-header" onclick="toggleGroup('fg-cuisine')">
+          Cuisine
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body" id="cuisineFilters">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Main Ingredient -->
+      <div class="filter-group" id="fg-ingredient">
+        <div class="filter-group-header" onclick="toggleGroup('fg-ingredient')">
+          Main Ingredient
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body" id="ingredientFilters">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Tags -->
+      <div class="filter-group" id="fg-tags">
+        <div class="filter-group-header" onclick="toggleGroup('fg-tags')">
+          Tags
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body" id="tagFilters">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Calories -->
+      <div class="filter-group" id="fg-calories">
+        <div class="filter-group-header" onclick="toggleGroup('fg-calories')">
+          Calories
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body">
+          <div class="range-wrap">
+            <input type="range" id="calRange" min="0" max="2000" step="50" value="2000" oninput="applyFilters(); document.getElementById('calVal').textContent=this.value" />
+            <div class="range-labels">
+              <span>0</span>
+              <span id="calVal">2000+</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Total Time -->
+      <div class="filter-group" id="fg-time">
+        <div class="filter-group-header" onclick="toggleGroup('fg-time')">
+          Total Time
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body">
+          <div class="range-wrap">
+            <input type="range" id="timeRange" min="0" max="180" step="15" value="180" oninput="applyFilters(); document.getElementById('timeVal').textContent=this.value" />
+            <div class="range-labels">
+              <span>0 min</span>
+              <span id="timeVal">180+ min</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rating -->
+      <div class="filter-group" id="fg-rating">
+        <div class="filter-group-header" onclick="toggleGroup('fg-rating')">
+          Rating
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body">
+          <div class="star-filter" id="ratingFilter">
+            <span class="star" data-val="1" onclick="setRatingFilter(1)">★</span>
+            <span class="star" data-val="2" onclick="setRatingFilter(2)">★</span>
+            <span class="star" data-val="3" onclick="setRatingFilter(3)">★</span>
+            <span class="star" data-val="4" onclick="setRatingFilter(4)">★</span>
+            <span class="star" data-val="5" onclick="setRatingFilter(5)">★</span>
+          </div>
+          <span style="font-size:0.78rem; color:rgba(147,197,253,0.5); margin-top:4px;" id="ratingLabel">Any rating</span>
+        </div>
+      </div>
+
+      <!-- Website -->
+      <div class="filter-group" id="fg-website">
+        <div class="filter-group-header" onclick="toggleGroup('fg-website')">
+          Website
+          <span class="chevron">▾</span>
+        </div>
+        <div class="filter-group-body" id="websiteFilters">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Planner shortcut -->
+      <a href="ui/index.html" class="sidebar-planner-btn">
+        📅 Pantry / Planner
+      </a>
+
+    </aside>
+
+    <!-- ── Recipe area ── -->
+    <main class="recipe-area" id="recipeArea">
+      <!-- Content rendered by JS -->
+    </main>
+
+  </div>
+
+  <!-- ── Add Recipe Modal ── -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>➕ Add New Recipe</h2>
+        <button class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <form class="modal-form" id="addRecipeForm" onsubmit="submitRecipe(event)">
+        <div class="form-group">
+          <label>Recipe Name *</label>
+          <input type="text" id="rName" placeholder="e.g. Classic Deviled Eggs" required />
+        </div>
+        <div class="form-group">
+          <label>Course</label>
+          <select id="rCourse">
+            <option value="">— Select —</option>
+            <option>Appetizers</option>
+            <option>Beverages</option>
+            <option>Breakfast</option>
+            <option>Desserts</option>
+            <option>Dinner</option>
+            <option>Lunch</option>
+            <option>Salads</option>
+            <option>Side Dishes</option>
+            <option>Snacks</option>
+            <option>Soups</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Cuisine</label>
+          <input type="text" id="rCuisine" placeholder="e.g. American, Italian, Mexican" />
+        </div>
+        <div class="form-group">
+          <label>Source Website</label>
+          <input type="text" id="rSource" placeholder="e.g. allrecipes.com" />
+        </div>
+        <div class="form-group">
+          <label>Tags <span style="color:rgba(147,197,253,0.5); font-weight:400;">(comma-separated)</span></label>
+          <input type="text" id="rTags" placeholder="e.g. Quick, Healthy, Grilled" />
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn-modal-submit">Save Recipe</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /* ─────────────────────────────────────────────
+       Data store  (persisted to localStorage)
+    ───────────────────────────────────────────── */
+    const STORAGE_KEY = 'pantryscan_recipes';
+
+    function loadRecipes() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+      catch { return []; }
+    }
+
+    function saveRecipes(list) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+
+    let recipes = loadRecipes();
+
+    /* ─────────────────────────────────────────────
+       Filter state
+    ───────────────────────────────────────────── */
+    let minRating = 0;
+
+    /* ─────────────────────────────────────────────
+       Helpers
+    ───────────────────────────────────────────── */
+    function unique(arr) { return [...new Set(arr.filter(Boolean))].sort(); }
+
+    function stars(n, total = 5) {
+      return Array.from({ length: total }, (_, i) =>
+        `<span class="s ${i < n ? 'lit' : 'dim'}">★</span>`
+      ).join('');
+    }
+
+    function nextId() {
+      return recipes.length ? Math.max(...recipes.map(r => r.id)) + 1 : 1;
+    }
+
+    /* ─────────────────────────────────────────────
+       Filter sidebar population
+    ───────────────────────────────────────────── */
+    function buildFilterGroup(containerId, values, onchange) {
+      const el = document.getElementById(containerId);
+      if (!values.length) {
+        el.innerHTML = '<span style="color:rgba(147,197,253,0.4);font-size:0.82rem;">No options yet</span>';
+        return;
+      }
+      el.innerHTML = values.map(v => `
+        <label class="filter-option">
+          <input type="checkbox" value="${v}" onchange="${onchange}" />
+          ${v}
+        </label>`).join('');
+    }
+
+    function refreshFilterSidebar() {
+      buildFilterGroup('courseFilters',    unique(recipes.map(r => r.course)),    'applyFilters()');
+      buildFilterGroup('cuisineFilters',   unique(recipes.map(r => r.cuisine)),   'applyFilters()');
+      buildFilterGroup('ingredientFilters',unique(recipes.map(r => r.ingredient)),'applyFilters()');
+      buildFilterGroup('tagFilters',       unique(recipes.flatMap(r => r.tags || [])), 'applyFilters()');
+      buildFilterGroup('websiteFilters',   unique(recipes.map(r => r.source)),    'applyFilters()');
+    }
+
+    function getChecked(containerId) {
+      return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(c => c.value);
+    }
+
+    /* ─────────────────────────────────────────────
+       Rendering
+    ───────────────────────────────────────────── */
+    function renderRecipes(list) {
+      const area = document.getElementById('recipeArea');
+
+      if (!list.length) {
+        area.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">📖</div>
+            <h2>No recipes yet</h2>
+            <p>Start building your recipe collection. Click <strong>+ Add Recipe</strong> to add your first one.</p>
+            <button class="btn-empty" onclick="openModal()">+ Add Recipe</button>
+          </div>`;
+        return;
+      }
+
+      /* Group by course */
+      const sortMode = document.querySelector('input[name=sort]:checked')?.value || 'course';
+
+      let sorted = [...list];
+      if (sortMode === 'name')   sorted.sort((a,b) => a.name.localeCompare(b.name));
+      if (sortMode === 'rating') sorted.sort((a,b) => (b.rating||0) - (a.rating||0));
+      if (sortMode === 'newest') sorted.sort((a,b) => b.id - a.id);
+
+      if (sortMode === 'course') {
+        /* Group */
+        const groups = {};
+        sorted.forEach(r => {
+          const c = r.course || 'Uncategorized';
+          if (!groups[c]) groups[c] = [];
+          groups[c].push(r);
+        });
+
+        area.innerHTML = Object.keys(groups).sort().map(course => `
+          <section class="course-section">
+            <div class="course-heading">Course: <span>${course}</span></div>
+            <div class="recipe-grid">
+              ${groups[course].map((r,i) => cardHTML(r, i+1)).join('')}
+            </div>
+          </section>`).join('');
+      } else {
+        area.innerHTML = `
+          <section class="course-section">
+            <div class="recipe-grid">
+              ${sorted.map((r,i) => cardHTML(r, i+1)).join('')}
+            </div>
+          </section>`;
+      }
+    }
+
+    function cardHTML(r, num) {
+      const tagHtml = (r.tags||[]).map(t =>
+        `<span class="tag"><span class="tag-icon">♦</span>${t}</span>`).join('');
+      const sourceHtml = r.source
+        ? `<span class="card-source"><span class="src-icon">🔗</span>${r.source}</span>`
+        : '';
+
+      return `
+        <div class="recipe-card" onclick="">
+          <div class="card-image">
+            <div class="img-placeholder">
+              <span class="ph-icon">🍽️</span>
+              <span>No image</span>
+            </div>
+            <span class="card-number">${num}</span>
+            <div class="card-stars">${stars(r.rating||0)}</div>
+            <button class="card-menu-btn" onclick="event.stopPropagation()">•••</button>
+          </div>
+          <div class="card-body">
+            <div class="card-title">${r.name}</div>
+          </div>
+          <div class="card-footer">
+            ${sourceHtml}
+            ${tagHtml ? `<div class="card-tags">${tagHtml}</div>` : ''}
+          </div>
+        </div>`;
+    }
+
+    /* ─────────────────────────────────────────────
+       Filter logic
+    ───────────────────────────────────────────── */
+    function applyFilters() {
+      const query    = document.getElementById('searchInput').value.toLowerCase().trim();
+      const courses  = getChecked('courseFilters');
+      const cuisines = getChecked('cuisineFilters');
+      const ingreds  = getChecked('ingredientFilters');
+      const tags     = getChecked('tagFilters');
+      const websites = getChecked('websiteFilters');
+      const maxCal   = parseInt(document.getElementById('calRange').value);
+      const maxTime  = parseInt(document.getElementById('timeRange').value);
+
+      const filtered = recipes.filter(r => {
+        if (query && !r.name.toLowerCase().includes(query) &&
+            !(r.tags||[]).join(' ').toLowerCase().includes(query)) return false;
+        if (courses.length  && !courses.includes(r.course))    return false;
+        if (cuisines.length && !cuisines.includes(r.cuisine))  return false;
+        if (ingreds.length  && !ingreds.includes(r.ingredient))return false;
+        if (tags.length     && !tags.some(t => (r.tags||[]).includes(t))) return false;
+        if (websites.length && !websites.includes(r.source))  return false;
+        if (r.calories  && r.calories  > maxCal)  return false;
+        if (r.totalTime && r.totalTime > maxTime)  return false;
+        if (minRating > 0 && (r.rating||0) < minRating) return false;
+        return true;
+      });
+
+      renderRecipes(filtered);
+    }
+
+    /* ─────────────────────────────────────────────
+       Rating filter
+    ───────────────────────────────────────────── */
+    function setRatingFilter(val) {
+      minRating = minRating === val ? 0 : val;   // toggle off if same star
+      document.querySelectorAll('#ratingFilter .star').forEach((s, i) => {
+        s.classList.toggle('lit', i < minRating);
+      });
+      document.getElementById('ratingLabel').textContent =
+        minRating ? `${minRating}+ stars` : 'Any rating';
+      applyFilters();
+    }
+
+    /* ─────────────────────────────────────────────
+       Accordion
+    ───────────────────────────────────────────── */
+    function toggleGroup(id) {
+      document.getElementById(id).classList.toggle('open');
+    }
+
+    /* ─────────────────────────────────────────────
+       Modal
+    ───────────────────────────────────────────── */
+    function openModal()  { document.getElementById('addModal').classList.add('open'); }
+    function closeModal() {
+      document.getElementById('addModal').classList.remove('open');
+      document.getElementById('addRecipeForm').reset();
+    }
+
+    document.getElementById('openAddModal').addEventListener('click', openModal);
+
+    // Close on backdrop click
+    document.getElementById('addModal').addEventListener('click', e => {
+      if (e.target === document.getElementById('addModal')) closeModal();
+    });
+
+    function submitRecipe(e) {
+      e.preventDefault();
+      const tagRaw = document.getElementById('rTags').value
+        .split(',').map(t => t.trim()).filter(Boolean);
+
+      const recipe = {
+        id:      nextId(),
+        name:    document.getElementById('rName').value.trim(),
+        course:  document.getElementById('rCourse').value || 'Uncategorized',
+        cuisine: document.getElementById('rCuisine').value.trim(),
+        source:  document.getElementById('rSource').value.trim(),
+        tags:    tagRaw,
+        rating:  0,
+        addedAt: Date.now()
+      };
+
+      recipes.push(recipe);
+      saveRecipes(recipes);
+      closeModal();
+      refreshAll();
+    }
+
+    /* ─────────────────────────────────────────────
+       View toggle
+    ───────────────────────────────────────────── */
+    function setView(mode) {
+      document.getElementById('gridViewBtn').classList.toggle('active',  mode === 'grid');
+      document.getElementById('tableViewBtn').classList.toggle('active', mode === 'table');
+      // Table view can be extended later; grid is default
+      applyFilters();
+    }
+
+    /* ─────────────────────────────────────────────
+       Badge update
+    ───────────────────────────────────────────── */
+    function updateBadge() {
+      document.getElementById('recipeBadge').textContent =
+        `${recipes.length} Recipe${recipes.length !== 1 ? 's' : ''}`;
+    }
+
+    /* ─────────────────────────────────────────────
+       Boot
+    ───────────────────────────────────────────── */
+    function refreshAll() {
+      updateBadge();
+      refreshFilterSidebar();
+      applyFilters();
+    }
+
+    refreshAll();
+  </script>
+</body>
+</html>
