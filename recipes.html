@@ -684,6 +684,124 @@
       box-shadow: 0 6px 20px rgba(59,130,246,0.35);
     }
 
+    /* ── Cuisine picker (modal) ── */
+    .modal {
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .cuisine-picker {
+      background: rgba(10,22,40,0.8);
+      border: 2px solid rgba(59,130,246,0.25);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .cuisine-picker:focus-within { border-color: #3b82f6; }
+
+    .cuisine-picker-top {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .btn-add-cuisine {
+      background: rgba(30,58,95,0.8);
+      color: #60a5fa;
+      border: 1px solid rgba(59,130,246,0.35);
+      border-radius: 8px;
+      padding: 6px 13px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      align-self: flex-start;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-add-cuisine:hover { background: rgba(30,80,140,0.8); border-color: #3b82f6; }
+
+    .cuisine-search {
+      width: 100%;
+      background: rgba(15,26,46,0.9);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 7px 11px;
+      font-size: 0.85rem;
+    }
+    .cuisine-search:focus { outline: none; border-color: #3b82f6; }
+    .cuisine-search::placeholder { color: rgba(147,197,253,0.4); }
+
+    .cuisine-list {
+      max-height: 190px;
+      overflow-y: auto;
+    }
+
+    .cuisine-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(59,130,246,0.06);
+      transition: background 0.12s;
+      user-select: none;
+    }
+    .cuisine-item:last-child { border-bottom: none; }
+    .cuisine-item:hover { background: rgba(59,130,246,0.09); }
+    .cuisine-item.selected { background: rgba(59,130,246,0.14); }
+
+    .cuisine-check {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(147,197,253,0.35);
+      flex-shrink: 0;
+      position: relative;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .cuisine-item.selected .cuisine-check {
+      border-color: #3b82f6;
+      background: #3b82f6;
+    }
+    .cuisine-item.selected .cuisine-check::after {
+      content: '';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #fff;
+    }
+
+    .cuisine-name {
+      flex: 1;
+      font-size: 0.9rem;
+      color: #e2e8f0;
+    }
+
+    .cuisine-badge {
+      background: rgba(30,58,95,0.9);
+      color: #60a5fa;
+      border-radius: 12px;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.73rem;
+      font-weight: 700;
+    }
+
+    .cuisine-empty {
+      padding: 12px;
+      color: rgba(147,197,253,0.4);
+      font-size: 0.82rem;
+      text-align: center;
+    }
+
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(15,20,25,0.5); }
@@ -914,8 +1032,16 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Cuisine</label>
-          <input type="text" id="rCuisine" placeholder="e.g. American, Italian, Mexican" />
+          <label>Cuisine <span style="color:rgba(147,197,253,0.45);font-weight:400;">(multi-select)</span></label>
+          <div class="cuisine-picker" id="cuisinePicker">
+            <div class="cuisine-picker-top">
+              <button type="button" class="btn-add-cuisine" onclick="addNewCuisine()">＋ Add New Cuisine...</button>
+              <input type="text" class="cuisine-search" id="cuisineSearch"
+                placeholder="Search cuisines..."
+                oninput="filterCuisineList(this.value)" />
+            </div>
+            <div class="cuisine-list" id="cuisineList"></div>
+          </div>
         </div>
         <div class="form-group">
           <label>Source Website</label>
@@ -937,7 +1063,85 @@
     /* ─────────────────────────────────────────────
        Data store  (persisted to localStorage)
     ───────────────────────────────────────────── */
-    const STORAGE_KEY = 'pantryscan_recipes';
+    const STORAGE_KEY   = 'pantryscan_recipes';
+    const CUISINES_KEY  = 'pantryscan_cuisines';
+
+    /* ─────────────────────────────────────────────
+       Cuisines store
+    ───────────────────────────────────────────── */
+    const DEFAULT_CUISINES = [
+      'African','American','Asian','Cajun','Caribbean','Central American',
+      'Crock Pot','European','French','Greek','Indian','Italian','Latin',
+      'Mediterranean','Mexican','Middle Eastern','Southern','Thai'
+    ];
+
+    function loadCuisines() {
+      try {
+        const s = JSON.parse(localStorage.getItem(CUISINES_KEY));
+        return Array.isArray(s) ? s : [...DEFAULT_CUISINES];
+      } catch { return [...DEFAULT_CUISINES]; }
+    }
+
+    function saveCuisines(list) {
+      localStorage.setItem(CUISINES_KEY, JSON.stringify(list));
+    }
+
+    let allCuisines = loadCuisines();
+    let selectedCuisines = [];
+
+    function cuisineCountFor(name) {
+      return recipes.filter(r =>
+        r.cuisine && r.cuisine.split(',').map(c => c.trim()).includes(name)
+      ).length;
+    }
+
+    function renderCuisineList(filter) {
+      const list = document.getElementById('cuisineList');
+      if (!list) return;
+      const q = (filter || '').toLowerCase().trim();
+      const visible = allCuisines.filter(c => !q || c.toLowerCase().includes(q));
+      if (!visible.length) {
+        list.innerHTML = '<div class="cuisine-empty">No cuisines found</div>';
+        return;
+      }
+      list.innerHTML = visible.map(c => {
+        const sel   = selectedCuisines.includes(c);
+        const count = cuisineCountFor(c);
+        const esc   = c.replace(/'/g, "\\'");
+        return `
+          <div class="cuisine-item${sel ? ' selected' : ''}" onclick="toggleCuisine('${esc}')">
+            <div class="cuisine-check"></div>
+            <span class="cuisine-name">${c}</span>
+            ${count ? `<span class="cuisine-badge">${count}</span>` : ''}
+          </div>`;
+      }).join('');
+    }
+
+    function filterCuisineList(val) {
+      renderCuisineList(val);
+    }
+
+    function toggleCuisine(name) {
+      const idx = selectedCuisines.indexOf(name);
+      if (idx === -1) selectedCuisines.push(name);
+      else selectedCuisines.splice(idx, 1);
+      renderCuisineList(document.getElementById('cuisineSearch')?.value || '');
+    }
+
+    function addNewCuisine() {
+      const raw = prompt('Enter new cuisine name:');
+      if (!raw || !raw.trim()) return;
+      const name = raw.trim();
+      if (allCuisines.some(c => c.toLowerCase() === name.toLowerCase())) {
+        alert('That cuisine already exists in the list.');
+        return;
+      }
+      allCuisines.push(name);
+      allCuisines.sort((a, b) => a.localeCompare(b));
+      saveCuisines(allCuisines);
+      selectedCuisines.push(name);
+      renderCuisineList(document.getElementById('cuisineSearch')?.value || '');
+    }
 
     function loadRecipes() {
       try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
@@ -988,7 +1192,7 @@
 
     function refreshFilterSidebar() {
       buildFilterGroup('courseFilters',    unique(recipes.map(r => r.course)),    'applyFilters()');
-      buildFilterGroup('cuisineFilters',   unique(recipes.map(r => r.cuisine)),   'applyFilters()');
+      buildFilterGroup('cuisineFilters',   unique(recipes.flatMap(r => r.cuisine ? r.cuisine.split(',').map(c => c.trim()).filter(Boolean) : [])), 'applyFilters()');
       buildFilterGroup('ingredientFilters',unique(recipes.map(r => r.ingredient)),'applyFilters()');
       buildFilterGroup('tagFilters',       unique(recipes.flatMap(r => r.tags || [])), 'applyFilters()');
       buildFilterGroup('websiteFilters',   unique(recipes.map(r => r.source)),    'applyFilters()');
@@ -1094,7 +1298,10 @@
         if (query && !r.name.toLowerCase().includes(query) &&
             !(r.tags||[]).join(' ').toLowerCase().includes(query)) return false;
         if (courses.length  && !courses.includes(r.course))    return false;
-        if (cuisines.length && !cuisines.includes(r.cuisine))  return false;
+        if (cuisines.length) {
+          const rCuisines = r.cuisine ? r.cuisine.split(',').map(c => c.trim()) : [];
+          if (!cuisines.some(c => rCuisines.includes(c))) return false;
+        }
         if (ingreds.length  && !ingreds.includes(r.ingredient))return false;
         if (tags.length     && !tags.some(t => (r.tags||[]).includes(t))) return false;
         if (websites.length && !websites.includes(r.source))  return false;
@@ -1130,10 +1337,16 @@
     /* ─────────────────────────────────────────────
        Modal
     ───────────────────────────────────────────── */
-    function openModal()  { document.getElementById('addModal').classList.add('open'); }
+    function openModal() {
+      selectedCuisines = [];
+      document.getElementById('addModal').classList.add('open');
+      document.getElementById('cuisineSearch').value = '';
+      renderCuisineList('');
+    }
     function closeModal() {
       document.getElementById('addModal').classList.remove('open');
       document.getElementById('addRecipeForm').reset();
+      selectedCuisines = [];
     }
 
     document.getElementById('openAddModal').addEventListener('click', openModal);
@@ -1152,7 +1365,7 @@
         id:      nextId(),
         name:    document.getElementById('rName').value.trim(),
         course:  document.getElementById('rCourse').value || 'Uncategorized',
-        cuisine: document.getElementById('rCuisine').value.trim(),
+        cuisine: selectedCuisines.join(', '),
         source:  document.getElementById('rSource').value.trim(),
         tags:    tagRaw,
         rating:  0,
