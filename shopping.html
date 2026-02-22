@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PantryScan – Shopping</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f1419;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    .top-bar {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      padding: 12px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(37,99,235,0.4);
+      position: relative;
+      z-index: 200;
+    }
+    .top-bar .logo { font-size:1.4rem; font-weight:800; color:#fff; text-decoration:none; text-shadow:1px 1px 4px rgba(0,0,0,.3); }
+    .top-bar-nav { display:flex; gap:4px; }
+    .top-nav-link {
+      background: transparent; border: none; color: rgba(255,255,255,.82);
+      padding: 7px 16px; border-radius: 8px; font-size: .93rem; font-weight: 500;
+      cursor: pointer; text-decoration: none; transition: background .18s, color .18s;
+    }
+    .top-nav-link:hover  { background: rgba(255,255,255,.12); color:#fff; }
+    .top-nav-link.active { background: rgba(255,255,255,.18); color:#fff; font-weight:700; }
+
+    /* ── Shell ── */
+    .app-shell { display:flex; height:calc(100vh - 49px); overflow:hidden; }
+
+    /* ════════════════ LEFT SIDEBAR ════════════════ */
+    .sidebar {
+      width: 220px; min-width: 220px;
+      background: #0d1320;
+      border-right: 1px solid rgba(59,130,246,.15);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    .sidebar-hdr {
+      padding: 13px 14px 10px;
+      border-bottom: 1px solid rgba(59,130,246,.15);
+      flex-shrink: 0;
+    }
+    .sidebar-hdr-title {
+      display:flex; align-items:center; gap:8px;
+      font-size:.97rem; font-weight:700; color:#e5e7eb;
+    }
+    .sidebar-hdr-title .icon { font-size:1rem; }
+
+    .staples-btn {
+      display:flex; align-items:center; gap:7px;
+      padding: 8px 14px; margin:6px 0 0;
+      background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.18);
+      border-radius: 8px; color:#93c5fd; font-size:.85rem; font-weight:600;
+      cursor:pointer; text-decoration:none; transition: background .18s, color .18s;
+    }
+    .staples-btn:hover { background: rgba(59,130,246,.18); color:#fff; }
+
+    /* Date range */
+    .range-section {
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid rgba(59,130,246,.1);
+      flex-shrink: 0;
+    }
+    .range-label { font-size:.72rem; font-weight:700; color:rgba(147,197,253,.5); text-transform:uppercase; letter-spacing:.6px; margin-bottom:6px; }
+
+    .range-preset {
+      width:100%; background: rgba(30,64,175,.15); border: 1px solid rgba(59,130,246,.25);
+      border-radius:8px; padding:6px 10px; color:#93c5fd; font-size:.82rem; cursor:pointer;
+      text-align:center; transition: background .18s;
+    }
+    .range-preset:hover { background: rgba(59,130,246,.2); }
+
+    .range-dates {
+      display:flex; align-items:center; gap:6px; margin-top:6px; flex-wrap:wrap;
+    }
+    .range-input {
+      flex:1; min-width:0; background: rgba(30,64,175,.12); border: 1px solid rgba(59,130,246,.22);
+      border-radius:6px; padding:5px 7px; color:#fff; font-size:.77rem;
+    }
+    .range-input:focus { outline:none; border-color:#3b82f6; background:rgba(59,130,246,.12); }
+    .range-sep { color:rgba(147,197,253,.4); font-size:.8rem; flex-shrink:0; }
+
+    .btn-apply-range {
+      width:100%; margin-top:6px; background:linear-gradient(135deg,#3b82f6,#2563eb);
+      border:none; border-radius:7px; padding:6px; color:#fff; font-size:.8rem;
+      font-weight:600; cursor:pointer; transition: transform .15s, box-shadow .15s;
+    }
+    .btn-apply-range:hover { transform:translateY(-1px); box-shadow:0 4px 14px rgba(59,130,246,.35); }
+
+    /* Planned recipes list */
+    .planned-section {
+      flex:1; overflow-y:auto; padding: 0 0 16px;
+      display:flex; flex-direction:column;
+    }
+
+    .ps-header {
+      padding: 10px 14px 4px; flex-shrink:0;
+    }
+    .ps-title { font-size:.72rem; font-weight:700; color:rgba(147,197,253,.5); text-transform:uppercase; letter-spacing:.6px; margin-bottom:5px; }
+    .ps-sort {
+      display:flex; align-items:center; gap:4px; font-size:.75rem; color:rgba(147,197,253,.5);
+    }
+    .sort-btn {
+      background:none; border:none; color:rgba(147,197,253,.5); font-size:.75rem; font-weight:700;
+      cursor:pointer; padding:1px 4px; border-radius:4px; transition: color .15s, background .15s;
+    }
+    .sort-btn.active { color:#60a5fa; }
+    .sort-btn:hover  { color:#93c5fd; background:rgba(59,130,246,.1); }
+    .sort-div { color:rgba(147,197,253,.25); }
+
+    .day-group-label {
+      font-size:.74rem; font-weight:700; color:rgba(255,255,255,.45);
+      padding: 8px 14px 3px; text-align:center;
+    }
+
+    .recipe-entry {
+      display:flex; align-items:center; gap:7px;
+      padding: 5px 14px; cursor:pointer; transition: background .15s;
+      border-radius:0;
+    }
+    .recipe-entry:hover { background:rgba(59,130,246,.09); }
+
+    .recipe-badge {
+      display:inline-flex; align-items:baseline; gap:0;
+      font-size:.72rem; font-weight:700; color:#38bdf8;
+      min-width:20px; flex-shrink:0; line-height:1;
+    }
+    .recipe-badge sup { font-size:.55rem; }
+
+    .recipe-entry-name {
+      font-size:.82rem; color:#d1d5db; flex:1; overflow:hidden;
+      text-overflow:ellipsis; white-space:nowrap;
+    }
+    .recipe-entry-name.highlighted { color:#60a5fa; }
+
+    /* ════════════════ MAIN AREA ════════════════ */
+    .main-area { flex:1; display:flex; flex-direction:column; overflow:hidden; background:#111827; }
+
+    /* Action bar */
+    .action-bar {
+      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+      padding: 9px 18px; background:rgba(10,15,25,.97);
+      border-bottom:1px solid rgba(59,130,246,.18); flex-shrink:0;
+    }
+    .action-bar-left  { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .action-bar-right { display:flex; align-items:center; gap:6px; }
+
+    .btn-add-item {
+      background:linear-gradient(135deg,#3b82f6,#2563eb); border:none;
+      border-radius:9px; color:#fff; padding:8px 16px; font-size:.88rem;
+      font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-add-item:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(59,130,246,.4); }
+
+    .btn-ghost {
+      background:rgba(30,64,175,.12); border:1px solid rgba(59,130,246,.22);
+      border-radius:8px; color:#93c5fd; padding:6px 14px; font-size:.83rem;
+      font-weight:600; cursor:pointer; transition: background .18s, color .18s;
+    }
+    .btn-ghost:hover { background:rgba(59,130,246,.2); color:#fff; }
+
+    .icon-btn {
+      background:rgba(30,64,175,.1); border:1px solid rgba(59,130,246,.15);
+      border-radius:8px; color:rgba(147,197,253,.7); padding:6px 10px;
+      font-size:.9rem; cursor:pointer; transition: background .15s, color .15s;
+    }
+    .icon-btn:hover { background:rgba(59,130,246,.2); color:#fff; }
+
+    .btn-deliver {
+      background:linear-gradient(135deg,#0284c7,#0369a1); border:none;
+      border-radius:9px; color:#fff; padding:8px 16px; font-size:.85rem;
+      font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px;
+      white-space:nowrap; transition: transform .15s, box-shadow .15s;
+    }
+    .btn-deliver:hover { transform:translateY(-1px); box-shadow:0 6px 18px rgba(2,132,199,.4); }
+
+    /* Toggle bar */
+    .toggle-bar {
+      display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;
+      padding: 7px 18px; background:rgba(8,12,20,.95);
+      border-bottom:1px solid rgba(59,130,246,.12); flex-shrink:0;
+    }
+    .toggle-bar-left { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+
+    .toggle-switch { display:flex; align-items:center; gap:7px; cursor:pointer; user-select:none; }
+    .toggle-switch input { display:none; }
+    .toggle-track {
+      width:32px; height:17px; background:rgba(59,130,246,.2);
+      border:1px solid rgba(59,130,246,.3); border-radius:999px; position:relative;
+      transition: background .2s, border-color .2s;
+    }
+    .toggle-track::after {
+      content:''; position:absolute; top:2px; left:2px;
+      width:11px; height:11px; background:rgba(147,197,253,.5);
+      border-radius:50%; transition: transform .2s, background .2s;
+    }
+    .toggle-switch input:checked + .toggle-track { background:rgba(59,130,246,.5); border-color:#3b82f6; }
+    .toggle-switch input:checked + .toggle-track::after { transform:translateX(14px); background:#7dd3fc; }
+    .toggle-label { font-size:.8rem; color:rgba(147,197,253,.75); font-weight:500; }
+
+    /* Scrollable list body */
+    .list-scroll { flex:1; overflow-y:auto; padding:0 18px 40px; }
+
+    /* Store group */
+    .store-group { margin-top:18px; }
+
+    .store-header {
+      display:flex; align-items:center; gap:10px;
+      padding: 9px 14px; margin-bottom:2px;
+      background:linear-gradient(90deg,rgba(30,64,175,.25),rgba(15,20,35,.2));
+      border:1px solid rgba(59,130,246,.2); border-radius:10px; cursor:pointer;
+      user-select:none; transition: background .18s;
+    }
+    .store-header:hover { background:linear-gradient(90deg,rgba(59,130,246,.22),rgba(30,64,175,.15)); }
+
+    .store-chevron { font-size:.75rem; color:#60a5fa; transition: transform .2s; }
+    .store-group.collapsed .store-chevron { transform:rotate(-90deg); }
+
+    .store-name { font-size:.95rem; font-weight:700; color:#e5e7eb; flex:1; }
+    .store-fav  { color:#3b82f6; font-size:.9rem; }
+
+    .select-all-wrap { display:flex; align-items:center; gap:6px; }
+    .select-all-lbl  { font-size:.78rem; color:rgba(147,197,253,.55); cursor:pointer; }
+
+    input[type=checkbox].item-check {
+      width:16px; height:16px; accent-color:#3b82f6; cursor:pointer; flex-shrink:0;
+    }
+
+    .store-body { padding: 0 2px; }
+    .store-group.collapsed .store-body { display:none; }
+
+    /* Category */
+    .cat-label {
+      font-size:.68rem; font-weight:700; color:rgba(147,197,253,.4);
+      text-transform:uppercase; letter-spacing:.8px; padding:10px 4px 3px;
+    }
+
+    /* Item row */
+    .item-row {
+      display:flex; align-items:baseline; gap:9px;
+      padding: 7px 6px 7px 2px; border-bottom:1px solid rgba(59,130,246,.06);
+      transition: background .15s; border-radius:6px;
+    }
+    .item-row:hover { background:rgba(59,130,246,.05); }
+
+    .item-row.checked .item-name,
+    .item-row.checked .item-qty { text-decoration:line-through; color:rgba(147,197,253,.35) !important; }
+
+    .item-name { font-size:.9rem; color:#e5e7eb; flex-shrink:0; }
+    .item-qty  { font-size:.83rem; color:rgba(147,197,253,.6); margin-left:2px; }
+    .item-note { font-size:.75rem; color:rgba(147,197,253,.35); display:block; margin-left:25px; }
+
+    /* Recipe letter badges on item */
+    .item-badges { display:flex; gap:3px; align-items:baseline; flex-wrap:wrap; margin-left:4px; }
+
+    .letter-badge {
+      display:inline-flex; align-items:baseline; gap:0;
+      font-size:.68rem; font-weight:700; border-radius:3px;
+      padding: 1px 4px; cursor:pointer; transition: opacity .15s;
+      line-height:1.4;
+    }
+    .letter-badge:hover { opacity:.75; }
+    .letter-badge sup { font-size:.52rem; }
+
+    .item-del-btn {
+      margin-left:auto; background:none; border:none; color:rgba(147,197,253,.2);
+      font-size:.75rem; cursor:pointer; padding:0 2px; opacity:0; transition: opacity .2s, color .2s;
+      flex-shrink:0;
+    }
+    .item-row:hover .item-del-btn { opacity:1; }
+    .item-del-btn:hover { color:#f87171; }
+
+    /* Empty state */
+    .empty-list {
+      text-align:center; padding:70px 20px;
+      color:rgba(147,197,253,.4);
+    }
+    .empty-list .ei { font-size:3.5rem; opacity:.35; margin-bottom:18px; }
+    .empty-list h2  { color:#60a5fa; font-size:1.2rem; margin-bottom:8px; }
+    .empty-list p   { font-size:.9rem; line-height:1.7; max-width:340px; margin:0 auto; }
+
+    /* ── Add item modal ── */
+    .modal-overlay {
+      display:none; position:fixed; inset:0;
+      background:rgba(0,0,0,.72); backdrop-filter:blur(4px);
+      z-index:300; align-items:center; justify-content:center;
+    }
+    .modal-overlay.open { display:flex; }
+    .modal {
+      background:linear-gradient(160deg,#0f1a2e,#111827);
+      border:1px solid rgba(59,130,246,.3); border-radius:16px;
+      padding:28px 30px; width:100%; max-width:460px;
+      box-shadow:0 20px 60px rgba(0,0,0,.6);
+      animation:slideUp .22s ease;
+    }
+    @keyframes slideUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+
+    .modal-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .modal-hdr h2 { color:#60a5fa; font-size:1.15rem; }
+    .modal-close { background:transparent; border:none; color:rgba(255,255,255,.45); font-size:1.3rem; cursor:pointer; transition:color .18s; }
+    .modal-close:hover { color:#fff; }
+
+    .form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .fg { margin-bottom:14px; }
+    .fg label { display:block; font-size:.82rem; font-weight:600; color:#93c5fd; margin-bottom:5px; }
+    .fg input, .fg select {
+      width:100%; background:rgba(30,64,175,.12); border:1px solid rgba(59,130,246,.25);
+      border-radius:9px; padding:9px 12px; color:#fff; font-size:.9rem;
+      transition:border-color .2s, background .2s;
+    }
+    .fg input:focus, .fg select:focus { outline:none; border-color:#3b82f6; background:rgba(59,130,246,.12); box-shadow:0 0 0 3px rgba(59,130,246,.1); }
+    .fg input::placeholder { color:rgba(147,197,253,.4); }
+    .fg select option { background:#0f1a2e; }
+
+    .modal-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:18px; }
+    .btn-cancel { background:rgba(55,65,81,.6); border:1px solid rgba(255,255,255,.1); border-radius:9px; color:rgba(255,255,255,.65); padding:9px 18px; font-size:.88rem; cursor:pointer; transition:background .18s; }
+    .btn-cancel:hover { background:rgba(75,85,99,.7); color:#fff; }
+    .btn-save { background:linear-gradient(135deg,#3b82f6,#2563eb); border:none; border-radius:9px; color:#fff; padding:9px 22px; font-size:.88rem; font-weight:600; cursor:pointer; transition:transform .15s,box-shadow .15s; }
+    .btn-save:hover { transform:translateY(-1px); box-shadow:0 5px 16px rgba(59,130,246,.35); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:rgba(15,20,25,.5); }
+    ::-webkit-scrollbar-thumb { background:rgba(59,130,246,.3); border-radius:3px; }
+    ::-webkit-scrollbar-thumb:hover { background:rgba(59,130,246,.55); }
+
+    @media(max-width:700px) { .sidebar{ display:none; } }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<header class="top-bar">
+  <a href="index.html" class="logo">🥫 PantryScan</a>
+  <nav class="top-bar-nav">
+    <a href="index.html"   class="top-nav-link">🏠 Inventory</a>
+    <a href="recipes.html" class="top-nav-link">📖 Recipes</a>
+    <a href="planner.html" class="top-nav-link">📅 Planner</a>
+    <a href="shopping.html" class="top-nav-link active">🛒 Shop</a>
+  </nav>
+</header>
+
+<div class="app-shell">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar">
+
+    <div class="sidebar-hdr">
+      <div class="sidebar-hdr-title"><span class="icon">✔</span> Shopping List</div>
+      <a href="#" class="staples-btn">🛒 Staples List</a>
+    </div>
+
+    <!-- Date range -->
+    <div class="range-section">
+      <div class="range-label">Planner Date Range</div>
+      <button class="range-preset" onclick="applyPreset()">custom range</button>
+      <div class="range-dates">
+        <input class="range-input" type="date" id="rangeStart" />
+        <span class="range-sep">—</span>
+        <input class="range-input" type="date" id="rangeEnd" />
+      </div>
+      <button class="btn-apply-range" onclick="applyRange()">Apply Range</button>
+    </div>
+
+    <!-- Planned recipes -->
+    <div class="planned-section">
+      <div class="ps-header">
+        <div class="ps-title">Planned Recipes</div>
+        <div class="ps-sort">
+          Sorted by:
+          <button class="sort-btn active" id="sortDate" onclick="setSortMode('date')">DATE</button>
+          <span class="sort-div">|</span>
+          <button class="sort-btn" id="sortAZ"   onclick="setSortMode('az')">A-Z</button>
+        </div>
+      </div>
+      <div id="plannedList"></div>
+    </div>
+
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <div class="main-area">
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <div class="action-bar-left">
+        <button class="btn-add-item" onclick="openAddModal()">＋ Add Items</button>
+        <button class="btn-ghost"    onclick="resetChecked()">↺ Reset List</button>
+        <button class="btn-ghost"    onclick="openStoreModal()">🏪 Stores</button>
+        <button class="btn-ghost"    onclick="openCatModal()">🗂 Categories</button>
+        <button class="icon-btn"     title="Export">📤</button>
+        <button class="icon-btn"     title="Print"  onclick="window.print()">🖨</button>
+      </div>
+      <div class="action-bar-right">
+        <button class="btn-deliver">🚚 Deliver Groceries</button>
+      </div>
+    </div>
+
+    <!-- Toggle bar -->
+    <div class="toggle-bar">
+      <div class="toggle-bar-left">
+        <label class="toggle-switch">
+          <input type="checkbox" id="tGroupStore" onchange="renderList()" />
+          <span class="toggle-track"></span>
+          <span class="toggle-label">Group Items by Store</span>
+        </label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="tMerge" checked onchange="renderList()" />
+          <span class="toggle-track"></span>
+          <span class="toggle-label">Merge Items</span>
+        </label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="tHideChecked" onchange="renderList()" />
+          <span class="toggle-track"></span>
+          <span class="toggle-label">Hide Removed</span>
+        </label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="tMetric" onchange="renderList()" />
+          <span class="toggle-track"></span>
+          <span class="toggle-label">Metric</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- List body -->
+    <div class="list-scroll" id="listScroll"></div>
+
+  </div>
+</div>
+
+<!-- ══ Add Item Modal ══ -->
+<div class="modal-overlay" id="addItemModal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2>➕ Add Item</h2>
+      <button class="modal-close" onclick="closeAddModal()">✕</button>
+    </div>
+    <form id="addItemForm" onsubmit="submitItem(event)">
+      <div class="fg">
+        <label>Item Name *</label>
+        <input type="text" id="iName" placeholder="e.g. Spinach" required />
+      </div>
+      <div class="form-row-2">
+        <div class="fg">
+          <label>Quantity</label>
+          <input type="text" id="iQty" placeholder="e.g. 4 handfuls" />
+        </div>
+        <div class="fg">
+          <label>Category</label>
+          <select id="iCat">
+            <option value="">— Select —</option>
+            <option>Produce</option>
+            <option>Dairy</option>
+            <option>Meat & Seafood</option>
+            <option>Bakery</option>
+            <option>Frozen</option>
+            <option>Pantry</option>
+            <option>Beverages</option>
+            <option>Snacks</option>
+            <option>Condiments</option>
+            <option>Canned Goods</option>
+            <option>Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="fg">
+          <label>Store</label>
+          <input type="text" id="iStore" placeholder="e.g. Walmart" />
+        </div>
+        <div class="fg">
+          <label>Note</label>
+          <input type="text" id="iNote" placeholder="optional note" />
+        </div>
+      </div>
+      <div class="fg">
+        <label>Assign to Recipes <span style="color:rgba(147,197,253,.45);font-weight:400;">(select one or more)</span></label>
+        <div id="recipeCheckboxes" style="max-height:110px;overflow-y:auto;background:rgba(30,64,175,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:5px;"></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+        <button type="submit" class="btn-save">Add to List</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════
+   Storage keys & helpers
+════════════════════════════════════════════ */
+const RECIPE_KEY   = 'pantryscan_recipes';
+const PLAN_KEY     = 'pantryscan_plan';
+const SHOP_KEY     = 'pantryscan_shopping';   // { items:[], checked:{}, dateStart, dateEnd }
+
+function loadRecipes(){ try{ return JSON.parse(localStorage.getItem(RECIPE_KEY))||[]; }catch{ return []; } }
+function loadPlan()   { try{ return JSON.parse(localStorage.getItem(PLAN_KEY))   ||{}; }catch{ return {}; } }
+function loadShop()   { try{ return JSON.parse(localStorage.getItem(SHOP_KEY))   ||{ items:[], checked:{} }; }catch{ return { items:[], checked:{} }; } }
+function saveShop(s)  { localStorage.setItem(SHOP_KEY, JSON.stringify(s)); }
+
+function toISO(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+function fmtDate(iso){ const [y,m,d]=iso.split('-'); const dt=new Date(y,m-1,d); return dt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}); }
+function fmtDateShort(iso){ const [y,m,d]=iso.split('-'); const dt=new Date(y,m-1,d); return dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}); }
+function escH(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escA(s){ return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;'); }
+
+/* ════════════════════════════════════════════
+   Color palette for letter badges
+════════════════════════════════════════════ */
+const BADGE_COLORS = [
+  '#38bdf8','#a78bfa','#34d399','#f59e0b','#f87171',
+  '#818cf8','#2dd4bf','#fb923c','#e879f9','#4ade80',
+  '#facc15','#60a5fa','#f472b6','#a3e635','#94a3b8',
+];
+function badgeColor(idx){ return BADGE_COLORS[idx % BADGE_COLORS.length]; }
+
+/* ════════════════════════════════════════════
+   State
+════════════════════════════════════════════ */
+let sortMode    = 'date';
+let shop        = loadShop();
+let plannedMap  = {};   // { recipeName -> { letter, superscript, dateStr }[] }
+let letterMap   = {};   // { 'A' -> recipeName, 'B' -> ... }
+let highlightLetter = null;
+
+/* ════════════════════════════════════════════
+   Date range
+════════════════════════════════════════════ */
+function defaultRange(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const end   = new Date(today); end.setDate(end.getDate()+6);
+  return { start: toISO(today), end: toISO(end) };
+}
+
+function initRange(){
+  const def = defaultRange();
+  document.getElementById('rangeStart').value = shop.dateStart || def.start;
+  document.getElementById('rangeEnd').value   = shop.dateEnd   || def.end;
+}
+
+function applyPreset(){
+  const def = defaultRange();
+  document.getElementById('rangeStart').value = def.start;
+  document.getElementById('rangeEnd').value   = def.end;
+  applyRange();
+}
+
+function applyRange(){
+  const s = document.getElementById('rangeStart').value;
+  const e = document.getElementById('rangeEnd').value;
+  shop.dateStart = s; shop.dateEnd = e;
+  saveShop(shop);
+  buildPlannedMap();
+  renderSidebar();
+  renderList();
+}
+
+/* ════════════════════════════════════════════
+   Build recipe→letter mapping from planner
+════════════════════════════════════════════ */
+function datesInRange(start, end){
+  const out = [];
+  const s = new Date(start), e = new Date(end);
+  for(let d=new Date(s); d<=e; d.setDate(d.getDate()+1)) out.push(toISO(new Date(d)));
+  return out;
+}
+
+function buildPlannedMap(){
+  const plan    = loadPlan();
+  const start   = document.getElementById('rangeStart').value;
+  const end     = document.getElementById('rangeEnd').value;
+  const dates   = datesInRange(start, end);
+  const MEALS   = ['Breakfast','Lunch','Dinner','Snacks'];
+
+  // Collect all (date, recipe) pairs in order
+  const pairs = [];
+  dates.forEach(ds => {
+    if(!plan[ds]) return;
+    MEALS.forEach(meal => {
+      (plan[ds][meal]||[]).forEach(name => pairs.push({ ds, name }));
+    });
+  });
+
+  // Assign letters: each unique recipe name gets a base letter.
+  // If the same name appears multiple times, give it superscripts.
+  const nameToBase = {};
+  const nameCounts = {};
+  let letterIdx = 0;
+  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+  plannedMap = {};
+  letterMap  = {};
+
+  pairs.forEach(({ ds, name }) => {
+    if(!(name in nameToBase)){
+      nameToBase[name] = LETTERS[letterIdx % LETTERS.length];
+      nameCounts[name] = 0;
+      letterIdx++;
+    }
+    nameCounts[name]++;
+    const base  = nameToBase[name];
+    const count = nameCounts[name];
+    const sup   = count > 1 ? String(count) : '';
+    const key   = base + (sup ? `^${sup}` : '');
+    letterMap[key] = name;
+    if(!plannedMap[name]) plannedMap[name] = [];
+    plannedMap[name].push({ letter: base, sup, dateStr: ds, key });
+  });
+}
+
+/* ════════════════════════════════════════════
+   Sidebar render
+════════════════════════════════════════════ */
+function setSortMode(m){
+  sortMode = m;
+  document.getElementById('sortDate').classList.toggle('active', m==='date');
+  document.getElementById('sortAZ'  ).classList.toggle('active', m==='az');
+  renderSidebar();
+}
+
+function renderSidebar(){
+  const plan   = loadPlan();
+  const start  = document.getElementById('rangeStart').value;
+  const end    = document.getElementById('rangeEnd').value;
+  const dates  = datesInRange(start, end);
+  const MEALS  = ['Breakfast','Lunch','Dinner','Snacks'];
+  const el     = document.getElementById('plannedList');
+
+  // Collect entries: { ds, name, badgeKey, letter, sup, color }
+  const entries = [];
+  dates.forEach(ds => {
+    if(!plan[ds]) return;
+    MEALS.forEach(meal => {
+      (plan[ds][meal]||[]).forEach(name => {
+        const occurrences = plannedMap[name]||[];
+        // find the correct occurrence for this date
+        const match = occurrences.find(o => o.dateStr===ds && !entries.some(e=>e._key===ds+name+o.key));
+        if(!match) return;
+        const colorIdx = Object.keys(Object.fromEntries(
+          Object.keys(plannedMap).map((n,i)=>[n,i])
+        )).indexOf(name);
+        entries.push({
+          ds, name, letter:match.letter, sup:match.sup, key:match.key,
+          color: badgeColor(colorIdx), _key: ds+name+match.key
+        });
+      });
+    });
+  });
+
+  if(!entries.length){
+    el.innerHTML = `<div style="padding:16px 14px;font-size:.82rem;color:rgba(147,197,253,.35);line-height:1.6;">
+      No recipes planned in this date range.<br/>
+      <a href="planner.html" style="color:#60a5fa;">Open Planner →</a>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+
+  if(sortMode === 'date'){
+    const byDate = {};
+    entries.forEach(e => { if(!byDate[e.ds]) byDate[e.ds]=[]; byDate[e.ds].push(e); });
+    Object.keys(byDate).sort().forEach(ds => {
+      html += `<div class="day-group-label">${fmtDateShort(ds)}</div>`;
+      byDate[ds].forEach(e => {
+        html += rowHTML(e);
+      });
+    });
+  } else {
+    [...entries].sort((a,b)=>a.name.localeCompare(b.name)).forEach(e => {
+      html += rowHTML(e);
+    });
+  }
+
+  el.innerHTML = html;
+}
+
+function rowHTML(e){
+  const isHL = highlightLetter === e.key;
+  return `<div class="recipe-entry" onclick="toggleHighlight('${escA(e.key)}')"
+               style="${isHL?'background:rgba(59,130,246,.15);':''}" >
+    <span class="recipe-badge" style="color:${e.color}">
+      ${e.letter}<sup>${e.sup}</sup>
+    </span>
+    <span class="recipe-entry-name ${isHL?'highlighted':''}">${escH(e.name)}</span>
+  </div>`;
+}
+
+function toggleHighlight(key){
+  highlightLetter = (highlightLetter===key) ? null : key;
+  renderSidebar();
+  renderList();
+}
+
+/* ════════════════════════════════════════════
+   Shopping list render
+════════════════════════════════════════════ */
+function getLetterStyle(name){
+  const colorIdx = Object.keys(plannedMap).indexOf(name);
+  return `color:${badgeColor(colorIdx==-1?0:colorIdx)}`;
+}
+
+function badgeHTML(name){
+  const occ = plannedMap[name]||[];
+  return occ.map(o=>
+    `<span class="letter-badge" style="${getLetterStyle(name)}"
+           onclick="event.stopPropagation();toggleHighlight('${escA(o.key)}')"
+           title="${escH(name)}">${o.letter}<sup>${o.sup}</sup></span>`
+  ).join('');
+}
+
+function renderList(){
+  const hideChecked = document.getElementById('tHideChecked').checked;
+  const groupStore  = document.getElementById('tGroupStore').checked;
+  const el          = document.getElementById('listScroll');
+
+  let items = shop.items || [];
+
+  // filter by highlight
+  if(highlightLetter){
+    const targetName = letterMap[highlightLetter];
+    items = items.filter(it => (it.recipes||[]).includes(targetName));
+  }
+
+  // hide checked
+  let display = hideChecked ? items.filter(it => !shop.checked[it.id]) : items;
+
+  if(!display.length && !(shop.items||[]).length){
+    el.innerHTML = `<div class="empty-list">
+      <div class="ei">🛒</div>
+      <h2>Your list is empty</h2>
+      <p>Click <strong>+ Add Items</strong> to start your shopping list, or select a date range with planned recipes.</p>
+    </div>`;
+    return;
+  }
+
+  if(!display.length){
+    el.innerHTML = `<div class="empty-list">
+      <div class="ei">✅</div>
+      <h2>All done!</h2>
+      <p>Every item has been checked off. Click <strong>↺ Reset List</strong> to start over.</p>
+    </div>`;
+    return;
+  }
+
+  // Group
+  const grouped = {};   // storeName -> { catName -> [items] }
+  display.forEach(it => {
+    const store = (groupStore && it.store) ? it.store : 'Shopping List';
+    const cat   = it.category || 'Other';
+    if(!grouped[store]) grouped[store] = {};
+    if(!grouped[store][cat]) grouped[store][cat] = [];
+    grouped[store][cat].push(it);
+  });
+
+  el.innerHTML = Object.keys(grouped).sort().map((store, sidx) => {
+    const cats     = grouped[store];
+    const total    = Object.values(cats).reduce((s,a)=>s+a.length,0);
+    const storeKey = `stgrp_${sidx}`;
+
+    const catsHTML = Object.keys(cats).sort().map(cat => {
+      return `<div class="cat-label">${escH(cat)}</div>` +
+        cats[cat].map(it => itemRowHTML(it, store)).join('');
+    }).join('');
+
+    return `<div class="store-group" id="${storeKey}">
+      <div class="store-header" onclick="toggleStore('${storeKey}')">
+        <span class="store-chevron">▼</span>
+        <span class="store-name">${escH(store)}</span>
+        <span class="store-fav">♥</span>
+        <span style="font-size:.8rem;color:rgba(147,197,253,.5);margin-left:4px;">(${total})</span>
+        <label class="select-all-wrap" onclick="event.stopPropagation()">
+          <input type="checkbox" class="item-check" onclick="toggleStoreAll('${storeKey}',this)" />
+          <span class="select-all-lbl">Select All</span>
+        </label>
+      </div>
+      <div class="store-body">${catsHTML}</div>
+    </div>`;
+  }).join('');
+}
+
+function itemRowHTML(it){
+  const checked = !!shop.checked[it.id];
+  const badges  = (it.recipes||[]).map(name => {
+    const occ = plannedMap[name]||[];
+    return occ.map(o=>
+      `<span class="letter-badge" style="${getLetterStyle(name)}"
+             title="${escH(name)}">${o.letter}<sup>${o.sup}</sup></span>`
+    ).join('');
+  }).join('');
+
+  const noteHtml = it.note ? `<span class="item-note">${escH(it.note)}</span>` : '';
+
+  return `<div class="item-row ${checked?'checked':''}" id="irow_${it.id}">
+    <input type="checkbox" class="item-check" ${checked?'checked':''}
+           onchange="toggleCheck('${it.id}',this.checked)" />
+    <span class="item-name">${escH(it.name)}</span>
+    ${it.qty ? `<span class="item-qty">${escH(it.qty)}</span>` : ''}
+    <div class="item-badges">${badges}</div>
+    ${noteHtml}
+    <button class="item-del-btn" onclick="deleteItem('${it.id}')" title="Remove">✕</button>
+  </div>`;
+}
+
+function toggleStore(id){
+  document.getElementById(id).classList.toggle('collapsed');
+}
+
+function toggleStoreAll(storeId, cb){
+  const rows = document.querySelectorAll(`#${storeId} .item-row`);
+  rows.forEach(row => {
+    const itemId = row.id.replace('irow_','');
+    shop.checked[itemId] = cb.checked;
+    row.classList.toggle('checked', cb.checked);
+    const rc = row.querySelector('input[type=checkbox]');
+    if(rc) rc.checked = cb.checked;
+  });
+  saveShop(shop);
+}
+
+function toggleCheck(id, val){
+  shop.checked[id] = val;
+  saveShop(shop);
+  const row = document.getElementById('irow_'+id);
+  if(row) row.classList.toggle('checked', val);
+  if(document.getElementById('tHideChecked').checked) renderList();
+}
+
+function deleteItem(id){
+  shop.items = (shop.items||[]).filter(it=>it.id!==id);
+  delete shop.checked[id];
+  saveShop(shop);
+  renderList();
+}
+
+function resetChecked(){
+  shop.checked = {};
+  saveShop(shop);
+  renderList();
+}
+
+/* ════════════════════════════════════════════
+   Add item modal
+════════════════════════════════════════════ */
+function openAddModal(){
+  // Populate recipe checkboxes with all planned recipes
+  const rcb = document.getElementById('recipeCheckboxes');
+  const names = Object.keys(plannedMap);
+  if(!names.length){
+    rcb.innerHTML = '<span style="font-size:.8rem;color:rgba(147,197,253,.35);">No planned recipes in range.</span>';
+  } else {
+    rcb.innerHTML = names.map((name,i) => {
+      const key  = plannedMap[name][0]?.letter || String.fromCharCode(65+i);
+      const col  = badgeColor(i);
+      return `<label style="display:flex;align-items:center;gap:7px;font-size:.82rem;color:#d1d5db;cursor:pointer;">
+        <input type="checkbox" value="${escA(name)}" style="accent-color:#3b82f6;width:14px;height:14px;" />
+        <span style="color:${col};font-weight:700;font-size:.75rem;">${key}</span>
+        ${escH(name)}
+      </label>`;
+    }).join('');
+  }
+  document.getElementById('addItemModal').classList.add('open');
+  document.getElementById('iName').focus();
+}
+
+function closeAddModal(){
+  document.getElementById('addItemModal').classList.remove('open');
+  document.getElementById('addItemForm').reset();
+}
+
+function submitItem(e){
+  e.preventDefault();
+  const name     = document.getElementById('iName').value.trim();
+  const qty      = document.getElementById('iQty').value.trim();
+  const cat      = document.getElementById('iCat').value;
+  const store    = document.getElementById('iStore').value.trim();
+  const note     = document.getElementById('iNote').value.trim();
+  const recipes  = [...document.querySelectorAll('#recipeCheckboxes input:checked')].map(c=>c.value);
+  const id       = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+
+  shop.items.push({ id, name, qty, category: cat||'Other', store, note, recipes });
+  saveShop(shop);
+  closeAddModal();
+  renderList();
+  renderSidebar();
+}
+
+function openStoreModal(){}   // placeholder
+function openCatModal(){}     // placeholder
+
+/* ════════════════════════════════════════════
+   Boot
+════════════════════════════════════════════ */
+initRange();
+buildPlannedMap();
+renderSidebar();
+renderList();
+
+window.addEventListener('storage', e => {
+  if(e.key===PLAN_KEY||e.key===RECIPE_KEY){ buildPlannedMap(); renderSidebar(); renderList(); }
+});
+</script>
+</body>
+</html>
