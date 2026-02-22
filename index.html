@@ -348,8 +348,45 @@
             }
         }
     </style>
+    <style>
+      .site-top-bar {
+        background: linear-gradient(135deg,#2563eb,#1e40af);
+        padding: 11px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: 0 4px 20px rgba(37,99,235,0.4);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      .site-top-bar .logo { font-size:1.4rem; font-weight:800; color:#fff; text-decoration:none; text-shadow:1px 1px 4px rgba(0,0,0,0.3); }
+      .site-top-bar nav { display:flex; gap:4px; }
+      .site-top-bar nav a {
+        background: transparent;
+        border: none;
+        color: rgba(255,255,255,0.82);
+        padding: 7px 16px;
+        border-radius: 8px;
+        font-size: 0.93rem;
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.18s, color 0.18s;
+      }
+      .site-top-bar nav a:hover   { background: rgba(255,255,255,0.12); color:#fff; }
+      .site-top-bar nav a.active  { background: rgba(255,255,255,0.18); color:#fff; font-weight:700; }
+    </style>
 </head>
 <body>
+    <header class="site-top-bar">
+      <a href="index.html" class="logo">🥫 PantryScan</a>
+      <nav>
+        <a href="index.html"   class="active">🏠 Inventory</a>
+        <a href="recipes.html">📖 Recipes</a>
+        <a href="planner.html">📅 Planner</a>
+      </nav>
+    </header>
     <div class="container">
         <div class="header">
             <h1>🛒 Grocery Inventory Manager</h1>

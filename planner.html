@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PantryScan – Planner</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #0f1419;
+      color: #ffffff;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    .top-bar {
+      background: linear-gradient(135deg, #2563eb, #1e40af);
+      padding: 12px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(37,99,235,0.4);
+      z-index: 200;
+      position: relative;
+    }
+
+    .top-bar .logo {
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #fff;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
+      text-decoration: none;
+    }
+
+    .top-bar-nav { display: flex; align-items: center; gap: 4px; }
+
+    .top-nav-link {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.82);
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 0.93rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.18s, color 0.18s;
+    }
+    .top-nav-link:hover          { background: rgba(255,255,255,0.12); color: #fff; }
+    .top-nav-link.active         { background: rgba(255,255,255,0.18); color: #fff; font-weight: 700; }
+
+    /* ── App shell (everything below top-bar) ── */
+    .app-shell {
+      display: flex;
+      height: calc(100vh - 49px);
+      overflow: hidden;
+    }
+
+    /* ══════════════════════════════════════════
+       LEFT SIDEBAR – My Recipes
+    ══════════════════════════════════════════ */
+    .recipe-sidebar {
+      width: 265px;
+      min-width: 265px;
+      background: #0d1320;
+      border-right: 1px solid rgba(59,130,246,0.15);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .sidebar-header h2 {
+      font-size: 0.97rem;
+      font-weight: 700;
+      color: #e5e7eb;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .sidebar-quick-links {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(59,130,246,0.1);
+      flex-shrink: 0;
+    }
+
+    .quick-link {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: 8px;
+      font-size: 0.87rem;
+      color: rgba(255,255,255,0.65);
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .quick-link:hover { background: rgba(59,130,246,0.1); color: #93c5fd; }
+    .quick-link .ql-icon { font-size: 0.9rem; margin-right: 6px; }
+    .quick-link .ql-badge {
+      background: rgba(59,130,246,0.2);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 999px;
+      padding: 1px 8px;
+      font-size: 0.75rem;
+      color: #7dd3fc;
+    }
+
+    /* Sidebar search */
+    .sidebar-search {
+      padding: 8px 10px;
+      border-bottom: 1px solid rgba(59,130,246,0.1);
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-search input {
+      flex: 1;
+      background: rgba(30,64,175,0.12);
+      border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 8px;
+      padding: 7px 10px;
+      color: #fff;
+      font-size: 0.85rem;
+    }
+    .sidebar-search input::placeholder { color: rgba(147,197,253,0.45); }
+    .sidebar-search input:focus { outline: none; border-color: #3b82f6; background: rgba(59,130,246,0.1); }
+
+    .btn-filters {
+      background: rgba(30,64,175,0.2);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 8px;
+      color: #93c5fd;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.18s;
+    }
+    .btn-filters:hover { background: rgba(59,130,246,0.2); color: #fff; }
+
+    /* Recipe list */
+    .recipe-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0 12px;
+    }
+
+    .course-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: rgba(147,197,253,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 10px 14px 4px;
+    }
+
+    .recipe-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px 7px 8px;
+      border-radius: 8px;
+      margin: 0 6px 1px;
+      cursor: grab;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    .recipe-row:hover          { background: rgba(59,130,246,0.1); }
+    .recipe-row.dragging       { opacity: 0.45; }
+
+    .recipe-row .thumb {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(30,64,175,0.3);
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      overflow: hidden;
+    }
+    .recipe-row .thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+    .recipe-row .rname {
+      flex: 1;
+      font-size: 0.86rem;
+      color: #d1d5db;
+      line-height: 1.3;
+    }
+
+    .recipe-row .drag-handle {
+      font-size: 0.8rem;
+      color: rgba(147,197,253,0.3);
+      cursor: grab;
+      padding: 0 2px;
+    }
+
+    .recipe-row .star-btn {
+      background: none;
+      border: none;
+      color: rgba(147,197,253,0.3);
+      font-size: 0.95rem;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .recipe-row .star-btn.starred { color: #f59e0b; }
+    .recipe-row .star-btn:hover   { color: #fbbf24; }
+
+    .sidebar-empty {
+      text-align: center;
+      padding: 32px 16px;
+      color: rgba(147,197,253,0.4);
+      font-size: 0.88rem;
+      line-height: 1.6;
+    }
+
+    .sidebar-empty a {
+      color: #60a5fa;
+      text-decoration: none;
+    }
+
+    /* ══════════════════════════════════════════
+       RIGHT – Calendar area
+    ══════════════════════════════════════════ */
+    .calendar-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #111827;
+    }
+
+    /* Sub-header toolbar */
+    .cal-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 18px;
+      background: rgba(10,15,25,0.95);
+      border-bottom: 1px solid rgba(59,130,246,0.18);
+      flex-shrink: 0;
+      gap: 10px;
+    }
+
+    .cal-toolbar-left { display: flex; align-items: center; gap: 8px; }
+
+    .view-toggle {
+      display: flex;
+      background: rgba(30,64,175,0.18);
+      border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .view-btn {
+      background: transparent;
+      border: none;
+      color: #93c5fd;
+      padding: 6px 16px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s;
+    }
+    .view-btn.active { background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
+    .view-btn:hover:not(.active) { background: rgba(59,130,246,0.15); }
+
+    .nav-arrows { display: flex; align-items: center; gap: 4px; }
+
+    .arrow-btn {
+      background: rgba(30,64,175,0.15);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 8px;
+      color: #93c5fd;
+      padding: 5px 10px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s;
+    }
+    .arrow-btn:hover { background: rgba(59,130,246,0.25); color: #fff; }
+
+    .today-btn {
+      background: rgba(30,64,175,0.15);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 8px;
+      color: #93c5fd;
+      padding: 5px 14px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s;
+    }
+    .today-btn:hover { background: rgba(59,130,246,0.25); color: #fff; }
+
+    .cal-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #e5e7eb;
+      min-width: 100px;
+    }
+
+    .cal-toolbar-right { display: flex; align-items: center; gap: 6px; }
+
+    .icon-btn {
+      background: rgba(30,64,175,0.1);
+      border: 1px solid rgba(59,130,246,0.15);
+      border-radius: 8px;
+      color: rgba(147,197,253,0.7);
+      padding: 5px 9px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .icon-btn:hover { background: rgba(59,130,246,0.2); color: #fff; }
+
+    /* ── Day column headers ── */
+    .day-headers {
+      display: grid;
+      grid-template-columns: 52px repeat(7, 1fr);
+      background: rgba(8,12,20,0.9);
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+      flex-shrink: 0;
+    }
+
+    .week-spacer { /* left gutter */ }
+
+    .day-header {
+      padding: 8px 6px 7px;
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: rgba(147,197,253,0.55);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border-left: 1px solid rgba(59,130,246,0.1);
+    }
+
+    /* ── Calendar scroll body ── */
+    .cal-scroll {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: auto;
+    }
+
+    /* ── Week row ── */
+    .week-row { border-bottom: 1px solid rgba(59,130,246,0.12); }
+
+    .week-header-row {
+      display: grid;
+      grid-template-columns: 52px repeat(7, 1fr);
+      background: rgba(10,14,22,0.97);
+      border-bottom: 1px solid rgba(59,130,246,0.12);
+      position: sticky;
+      /* not truly sticky per week, but keeps dates visible */
+    }
+
+    .week-side {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 0;
+    }
+
+    .hide-btn {
+      background: none;
+      border: none;
+      color: rgba(147,197,253,0.45);
+      font-size: 0.72rem;
+      cursor: pointer;
+      padding: 3px 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+      white-space: nowrap;
+    }
+    .hide-btn:hover { color: #93c5fd; background: rgba(59,130,246,0.1); }
+
+    .day-date-cell {
+      padding: 5px 8px;
+      border-left: 1px solid rgba(59,130,246,0.1);
+    }
+
+    .day-date-num {
+      font-size: 1rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.75);
+    }
+    .day-date-num.today-num {
+      background: #2563eb;
+      color: #fff;
+      border-radius: 50%;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+    }
+    .day-date-num.other-month { color: rgba(147,197,253,0.25); }
+
+    .day-month-tag {
+      font-size: 0.68rem;
+      color: rgba(147,197,253,0.4);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 1px;
+    }
+
+    /* ── Week body (meal slots) ── */
+    .week-body {
+      display: grid;
+      grid-template-columns: 52px repeat(7, 1fr);
+      min-height: 160px;
+    }
+
+    .week-body.collapsed { display: none; }
+
+    .meal-col {
+      border-left: 1px solid rgba(59,130,246,0.1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .meal-slot {
+      border-bottom: 1px solid rgba(59,130,246,0.07);
+      padding: 3px 5px;
+      min-height: 36px;
+      position: relative;
+      transition: background 0.15s;
+    }
+    .meal-slot:last-child { border-bottom: none; }
+
+    .meal-slot.drag-over { background: rgba(59,130,246,0.12); }
+    .meal-slot.notes-slot { min-height: 28px; }
+
+    .meal-label {
+      font-size: 0.66rem;
+      font-weight: 700;
+      color: rgba(147,197,253,0.35);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 2px 0 1px;
+    }
+
+    .slot-gutter {
+      /* left label column */
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slot-gutter .gutter-label {
+      font-size: 0.64rem;
+      font-weight: 700;
+      color: rgba(147,197,253,0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 5px 0 0 6px;
+      min-height: 36px;
+      border-bottom: 1px solid rgba(59,130,246,0.07);
+      display: flex;
+      align-items: flex-start;
+    }
+
+    .slot-gutter .gutter-label:last-child { border-bottom: none; }
+
+    /* ── Meal chips ── */
+    .meal-chips { display: flex; flex-direction: column; gap: 2px; margin-top: 1px; }
+
+    .meal-chip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(90deg, rgba(5,150,105,0.35), rgba(6,120,87,0.25));
+      border: 1px solid rgba(5,150,105,0.4);
+      border-radius: 5px;
+      padding: 3px 6px;
+      font-size: 0.75rem;
+      color: #6ee7b7;
+      line-height: 1.3;
+      cursor: default;
+      gap: 4px;
+    }
+
+    .meal-chip.chip-alt {
+      background: linear-gradient(90deg, rgba(217,119,6,0.3), rgba(180,98,4,0.2));
+      border-color: rgba(217,119,6,0.4);
+      color: #fcd34d;
+    }
+
+    .chip-remove {
+      background: none;
+      border: none;
+      color: inherit;
+      opacity: 0.5;
+      cursor: pointer;
+      font-size: 0.7rem;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: opacity 0.15s;
+    }
+    .chip-remove:hover { opacity: 1; }
+
+    .chip-drag-handle {
+      font-size: 0.65rem;
+      opacity: 0.4;
+      cursor: grab;
+      flex-shrink: 0;
+    }
+
+    /* Notes slot */
+    .notes-input {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: rgba(147,197,253,0.6);
+      font-size: 0.75rem;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      padding: 2px 2px;
+      min-height: 24px;
+    }
+    .notes-input::placeholder { color: rgba(147,197,253,0.2); }
+
+    /* Drop zone hint */
+    .drop-hint {
+      font-size: 0.7rem;
+      color: rgba(147,197,253,0.18);
+      padding: 2px 0;
+      pointer-events: none;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: rgba(15,20,25,0.5); }
+    ::-webkit-scrollbar-thumb { background: rgba(59,130,246,0.3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(59,130,246,0.55); }
+
+    /* ── Month view tweaks ── */
+    .month-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      border-top: 1px solid rgba(59,130,246,0.12);
+    }
+
+    .month-cell {
+      border-right: 1px solid rgba(59,130,246,0.1);
+      border-bottom: 1px solid rgba(59,130,246,0.1);
+      min-height: 100px;
+      padding: 6px;
+      transition: background 0.15s;
+      position: relative;
+    }
+    .month-cell:nth-child(7n) { border-right: none; }
+    .month-cell.other-month-cell { opacity: 0.4; }
+    .month-cell.drag-over { background: rgba(59,130,246,0.1); }
+
+    .month-date {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.65);
+      margin-bottom: 5px;
+    }
+    .month-date.today-num {
+      background: #2563eb;
+      color: #fff;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+    }
+    .month-date.other-month { color: rgba(147,197,253,0.25); }
+
+    .month-chip {
+      background: linear-gradient(90deg, rgba(5,150,105,0.35), rgba(6,120,87,0.2));
+      border: 1px solid rgba(5,150,105,0.35);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 0.72rem;
+      color: #6ee7b7;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .month-chip .chip-remove {
+      color: #6ee7b7;
+      opacity: 0.45;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .recipe-sidebar { width: 200px; min-width: 200px; }
+    }
+    @media (max-width: 680px) {
+      .recipe-sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ── -->
+<header class="top-bar">
+  <a href="index.html" class="logo">🥫 PantryScan</a>
+  <nav class="top-bar-nav">
+    <a href="index.html"   class="top-nav-link">🏠 Inventory</a>
+    <a href="recipes.html" class="top-nav-link">📖 Recipes</a>
+    <a href="planner.html" class="top-nav-link active">📅 Planner</a>
+  </nav>
+</header>
+
+<!-- ── App shell ── -->
+<div class="app-shell">
+
+  <!-- ════ LEFT SIDEBAR ════ -->
+  <aside class="recipe-sidebar">
+    <div class="sidebar-header">
+      <h2>🍴 My Recipes</h2>
+      <a href="recipes.html" title="Manage recipes" style="color:#60a5fa; font-size:1.1rem; text-decoration:none;">＋</a>
+    </div>
+
+    <div class="sidebar-quick-links">
+      <a class="quick-link" href="#">
+        <span><span class="ql-icon">⏳</span> Queue</span>
+        <span class="ql-badge">0</span>
+      </a>
+      <a class="quick-link" href="#">
+        <span><span class="ql-icon">❄️</span> Freezer</span>
+        <span class="ql-badge">0</span>
+      </a>
+      <a class="quick-link" href="#">
+        <span><span class="ql-icon">👥</span> Friends</span>
+        <span class="ql-badge" id="friendsBadge">0</span>
+      </a>
+    </div>
+
+    <div class="sidebar-search">
+      <input type="text" id="sidebarSearch" placeholder="Search" oninput="filterSidebar()" />
+      <button class="btn-filters">Filters ≡</button>
+    </div>
+
+    <div class="recipe-list" id="recipeList">
+      <div class="sidebar-empty">
+        No recipes yet.<br />
+        <a href="recipes.html">Add recipes →</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ════ CALENDAR ════ -->
+  <div class="calendar-area">
+
+    <!-- Toolbar -->
+    <div class="cal-toolbar">
+      <div class="cal-toolbar-left">
+        <div class="view-toggle">
+          <button class="view-btn active" id="monthViewBtn" onclick="setView('month')">Month</button>
+          <button class="view-btn"        id="weekViewBtn"  onclick="setView('week')">Week</button>
+        </div>
+        <div class="nav-arrows">
+          <button class="arrow-btn" onclick="navigate(-1)">‹</button>
+          <button class="today-btn" onclick="goToday()">Today</button>
+          <button class="arrow-btn" onclick="navigate(1)">›</button>
+        </div>
+        <span class="cal-title" id="calTitle"></span>
+      </div>
+      <div class="cal-toolbar-right">
+        <button class="icon-btn" title="Search">🔍</button>
+        <button class="icon-btn" title="Share">👥</button>
+        <button class="icon-btn" title="Edit">✏️</button>
+        <button class="icon-btn" title="Export">📤</button>
+        <button class="icon-btn" title="Settings">⚙️</button>
+      </div>
+    </div>
+
+    <!-- Day-of-week headers -->
+    <div class="day-headers" id="dayHeaders">
+      <div class="week-spacer"></div>
+      <!-- populated by JS -->
+    </div>
+
+    <!-- Scrollable calendar body -->
+    <div class="cal-scroll" id="calScroll">
+      <!-- populated by JS -->
+    </div>
+
+  </div><!-- /calendar-area -->
+</div><!-- /app-shell -->
+
+<script>
+/* ════════════════════════════════════════════════════════════
+   Constants & state
+════════════════════════════════════════════════════════════ */
+const RECIPE_KEY  = 'pantryscan_recipes';
+const PLAN_KEY    = 'pantryscan_plan';       // { 'YYYY-MM-DD': { Breakfast:[…], Lunch:[…], … } }
+const MEALS       = ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Notes'];
+const DAY_NAMES   = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+
+let currentView   = 'month';
+let cursor        = new Date();   // drives which month/week we're viewing
+cursor.setHours(0,0,0,0);
+
+let dragRecipeName = null;        // recipe being dragged from sidebar
+let collapsed      = {};          // { 'week-key': true }
+
+/* ── Persistence ── */
+function loadRecipes() { try { return JSON.parse(localStorage.getItem(RECIPE_KEY)) || []; } catch { return []; } }
+function loadPlan()    { try { return JSON.parse(localStorage.getItem(PLAN_KEY))    || {}; } catch { return {}; } }
+function savePlan(p)   { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); }
+
+let recipes = loadRecipes();
+let plan    = loadPlan();
+
+/* ════════════════════════════════════════════════════════════
+   Sidebar
+════════════════════════════════════════════════════════════ */
+function unique(arr) { return [...new Set(arr.filter(Boolean))].sort(); }
+
+function renderSidebar(filter = '') {
+  const list = document.getElementById('recipeList');
+  const q    = filter.toLowerCase().trim();
+  const src  = loadRecipes();   // always fresh
+  recipes    = src;
+
+  const visible = src.filter(r => !q || r.name.toLowerCase().includes(q));
+
+  if (!visible.length) {
+    list.innerHTML = src.length
+      ? '<div class="sidebar-empty">No matching recipes.</div>'
+      : '<div class="sidebar-empty">No recipes yet.<br/><a href="recipes.html">Add recipes →</a></div>';
+    return;
+  }
+
+  // Group by course
+  const courses = {};
+  visible.forEach(r => {
+    const c = r.course || 'Uncategorized';
+    if (!courses[c]) courses[c] = [];
+    courses[c].push(r);
+  });
+
+  list.innerHTML = Object.keys(courses).sort().map(course => `
+    <div class="course-label">Course: ${course}</div>
+    ${courses[course].map(r => `
+      <div class="recipe-row" draggable="true"
+           data-name="${escHtml(r.name)}"
+           ondragstart="onSidebarDragStart(event,'${escAttr(r.name)}')"
+           ondragend="onSidebarDragEnd(event)">
+        <span class="drag-handle">⠿⠿</span>
+        <span class="thumb">🍽️</span>
+        <span class="rname">${escHtml(r.name)}</span>
+        <button class="star-btn ${r.rating > 0 ? 'starred' : ''}"
+                onclick="event.stopPropagation(); toggleStar('${escAttr(r.name)}')"
+                title="Star">☆</button>
+      </div>
+    `).join('')}
+  `).join('');
+
+  document.getElementById('friendsBadge').textContent = src.length;
+}
+
+function filterSidebar() {
+  renderSidebar(document.getElementById('sidebarSearch').value);
+}
+
+function toggleStar(name) {
+  const all = loadRecipes();
+  const r   = all.find(x => x.name === name);
+  if (r) { r.rating = r.rating > 0 ? 0 : 5; localStorage.setItem(RECIPE_KEY, JSON.stringify(all)); }
+  renderSidebar(document.getElementById('sidebarSearch').value);
+}
+
+/* ════════════════════════════════════════════════════════════
+   Drag – from sidebar
+════════════════════════════════════════════════════════════ */
+function onSidebarDragStart(e, name) {
+  dragRecipeName = name;
+  e.dataTransfer.effectAllowed = 'copy';
+  e.currentTarget.classList.add('dragging');
+}
+function onSidebarDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+}
+
+/* ── Slot drag-over / drop ── */
+function onSlotDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onSlotDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function onSlotDrop(e, dateStr, meal) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragRecipeName) return;
+  addMealEntry(dateStr, meal, dragRecipeName);
+  dragRecipeName = null;
+  renderCalendar();
+}
+
+/* ════════════════════════════════════════════════════════════
+   Plan data helpers
+════════════════════════════════════════════════════════════ */
+function addMealEntry(dateStr, meal, name) {
+  if (!plan[dateStr])       plan[dateStr] = {};
+  if (!plan[dateStr][meal]) plan[dateStr][meal] = [];
+  if (!plan[dateStr][meal].includes(name)) plan[dateStr][meal].push(name);
+  savePlan(plan);
+}
+
+function removeMealEntry(dateStr, meal, name) {
+  if (!plan[dateStr]?.[meal]) return;
+  plan[dateStr][meal] = plan[dateStr][meal].filter(n => n !== name);
+  savePlan(plan);
+  renderCalendar();
+}
+
+function saveNote(dateStr, val) {
+  if (!plan[dateStr]) plan[dateStr] = {};
+  plan[dateStr]['Notes'] = val;
+  savePlan(plan);
+}
+
+/* ════════════════════════════════════════════════════════════
+   Date helpers
+════════════════════════════════════════════════════════════ */
+function toISO(d) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'),
+        day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function isToday(d) {
+  const t = new Date(); t.setHours(0,0,0,0);
+  return d.getTime() === t.getTime();
+}
+
+// Monday-first Monday of a given date's week
+function weekStart(d) {
+  const copy = new Date(d);
+  const dow  = copy.getDay();             // 0=Sun
+  const diff = (dow === 0 ? -6 : 1-dow); // shift to Monday
+  copy.setDate(copy.getDate() + diff);
+  copy.setHours(0,0,0,0);
+  return copy;
+}
+
+// All 7 days of week starting from week-start Monday
+function weekDays(monDate) {
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(monDate);
+    d.setDate(monDate.getDate() + i);
+    return d;
+  });
+}
+
+// All week-start Mondays visible for the month of `cursor`
+function monthWeeks() {
+  const year = cursor.getFullYear(), month = cursor.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay  = new Date(year, month+1, 0);
+  const weeks = [];
+  let mon = weekStart(firstDay);
+  while (mon <= lastDay) {
+    weeks.push(new Date(mon));
+    mon = new Date(mon);
+    mon.setDate(mon.getDate() + 7);
+  }
+  return weeks;
+}
+
+/* ════════════════════════════════════════════════════════════
+   Rendering
+════════════════════════════════════════════════════════════ */
+function setView(v) {
+  currentView = v;
+  document.getElementById('monthViewBtn').classList.toggle('active', v==='month');
+  document.getElementById('weekViewBtn').classList.toggle('active',  v==='week');
+  renderCalendar();
+}
+
+function navigate(dir) {
+  if (currentView === 'month') {
+    cursor.setMonth(cursor.getMonth() + dir);
+  } else {
+    cursor.setDate(cursor.getDate() + dir * 7);
+  }
+  renderCalendar();
+}
+
+function goToday() {
+  cursor = new Date(); cursor.setHours(0,0,0,0);
+  renderCalendar();
+}
+
+function renderCalendar() {
+  updateTitle();
+  if (currentView === 'week') renderWeekView();
+  else                        renderMonthView();
+}
+
+function updateTitle() {
+  const el = document.getElementById('calTitle');
+  if (currentView === 'month') {
+    el.textContent = `${MONTH_NAMES[cursor.getMonth()]} ${cursor.getFullYear()}`;
+  } else {
+    const mon = weekStart(cursor);
+    const sun = new Date(mon); sun.setDate(mon.getDate()+6);
+    const mStr = `${MONTH_NAMES[mon.getMonth()].slice(0,3)} ${mon.getDate()}`;
+    const sStr = `${MONTH_NAMES[sun.getMonth()].slice(0,3)} ${sun.getDate()}, ${sun.getFullYear()}`;
+    el.textContent = `${mStr} – ${sStr}`;
+  }
+}
+
+/* ── Day-of-week header row ── */
+function buildDayHeaders() {
+  const hdr = document.getElementById('dayHeaders');
+  // Remove old day cells (keep the week-spacer child)
+  while (hdr.children.length > 1) hdr.removeChild(hdr.lastChild);
+  DAY_NAMES.forEach(n => {
+    const d = document.createElement('div');
+    d.className = 'day-header';
+    d.textContent = n;
+    hdr.appendChild(d);
+  });
+}
+
+/* ════════════════════════ MONTH VIEW ════════════════════════ */
+function renderMonthView() {
+  buildDayHeaders();
+  const scroll = document.getElementById('calScroll');
+  const weeks  = monthWeeks();
+  const thisMonth = cursor.getMonth();
+
+  scroll.innerHTML = weeks.map(mon => {
+    const days = weekDays(mon);
+    const wKey = toISO(mon);
+    const isCollapsed = !!collapsed[wKey];
+
+    const dateHeader = `
+      <div class="week-header-row">
+        <div class="week-side">
+          <button class="hide-btn" onclick="toggleCollapse('${wKey}')">
+            ${isCollapsed ? 'Show ∨' : 'Hide ∧'}
+          </button>
+        </div>
+        ${days.map(d => {
+          const ds      = toISO(d);
+          const otherMo = d.getMonth() !== thisMonth;
+          const numCls  = isToday(d) ? 'today-num' : otherMo ? 'other-month' : '';
+          const mTag    = (d.getDate()===1 || (d.getTime()===mon.getTime()))
+                          ? `<div class="day-month-tag">${MONTH_NAMES[d.getMonth()].slice(0,3).toUpperCase()}</div>` : '';
+          return `<div class="day-date-cell" style="border-left:1px solid rgba(59,130,246,0.1)">
+            ${mTag}
+            <span class="day-date-num ${numCls}">${d.getDate()}</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+
+    /* meal rows */
+    const bodyRows = isCollapsed ? '' : MEALS.map(meal => {
+      const slotCols = days.map(d => {
+        const ds      = toISO(d);
+        const entries = meal === 'Notes'
+          ? null
+          : (plan[ds]?.[meal] || []);
+
+        if (meal === 'Notes') {
+          const note = plan[ds]?.['Notes'] || '';
+          return `<div class="meal-col">
+            <div class="meal-slot notes-slot"
+                 ondragover="onSlotDragOver(event)"
+                 ondragleave="onSlotDragLeave(event)"
+                 ondrop="onSlotDrop(event,'${ds}','Notes')">
+              <input class="notes-input" placeholder="Notes" value="${escAttr(note)}"
+                     onchange="saveNote('${ds}', this.value)" />
+            </div>
+          </div>`;
+        }
+
+        const chips = entries.map((name,ci) => chipHTML(ds, meal, name, ci)).join('');
+        return `<div class="meal-col">
+          <div class="meal-slot"
+               ondragover="onSlotDragOver(event)"
+               ondragleave="onSlotDragLeave(event)"
+               ondrop="onSlotDrop(event,'${ds}','${meal}')">
+            <div class="meal-label">${meal}</div>
+            <div class="meal-chips">${chips}</div>
+          </div>
+        </div>`;
+      }).join('');
+
+      return `<div class="week-body" style="min-height:auto">
+        <div class="slot-gutter">
+          <div class="gutter-label">${meal === 'Notes' ? 'Notes' : ''}</div>
+        </div>
+        ${slotCols}
+      </div>`;
+    }).join('');
+
+    return `<div class="week-row" id="week-${wKey}">
+      ${dateHeader}
+      ${bodyRows}
+    </div>`;
+  }).join('');
+}
+
+/* ════════════════════════ WEEK VIEW ════════════════════════ */
+function renderWeekView() {
+  buildDayHeaders();
+  const scroll = document.getElementById('calScroll');
+  const mon    = weekStart(cursor);
+  const days   = weekDays(mon);
+  const wKey   = toISO(mon);
+  const isCollapsed = !!collapsed[wKey];
+
+  const dateHeader = `
+    <div class="week-header-row">
+      <div class="week-side">
+        <button class="hide-btn" onclick="toggleCollapse('${wKey}')">
+          ${isCollapsed ? 'Show ∨' : 'Hide ∧'}
+        </button>
+      </div>
+      ${days.map(d => {
+        const numCls = isToday(d) ? 'today-num' : '';
+        const mTag   = `<div class="day-month-tag">${MONTH_NAMES[d.getMonth()].slice(0,3).toUpperCase()}</div>`;
+        return `<div class="day-date-cell" style="border-left:1px solid rgba(59,130,246,0.1)">
+          ${mTag}
+          <span class="day-date-num ${numCls}">${d.getDate()}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  const body = isCollapsed ? '' : MEALS.map(meal => {
+    const slotCols = days.map(d => {
+      const ds = toISO(d);
+      if (meal === 'Notes') {
+        const note = plan[ds]?.['Notes'] || '';
+        return `<div class="meal-col">
+          <div class="meal-slot notes-slot"
+               ondragover="onSlotDragOver(event)"
+               ondragleave="onSlotDragLeave(event)"
+               ondrop="onSlotDrop(event,'${ds}','Notes')">
+            <input class="notes-input" placeholder="Notes" value="${escAttr(note)}"
+                   onchange="saveNote('${ds}', this.value)" />
+          </div>
+        </div>`;
+      }
+      const entries = plan[ds]?.[meal] || [];
+      const chips   = entries.map((name,ci) => chipHTML(ds, meal, name, ci)).join('');
+      return `<div class="meal-col">
+        <div class="meal-slot"
+             ondragover="onSlotDragOver(event)"
+             ondragleave="onSlotDragLeave(event)"
+             ondrop="onSlotDrop(event,'${ds}','${meal}')">
+          <div class="meal-label">${meal}</div>
+          <div class="meal-chips">${chips}</div>
+        </div>
+      </div>`;
+    }).join('');
+
+    return `<div class="week-body">
+      <div class="slot-gutter">
+        <div class="gutter-label">${meal}</div>
+      </div>
+      ${slotCols}
+    </div>`;
+  }).join('');
+
+  scroll.innerHTML = `<div class="week-row" id="week-${wKey}">
+    ${dateHeader}
+    ${body}
+  </div>`;
+}
+
+/* ── Chip HTML ── */
+function chipHTML(dateStr, meal, name, idx) {
+  const alt = idx % 2 === 1 ? 'chip-alt' : '';
+  return `<div class="meal-chip ${alt}">
+    <span class="chip-drag-handle">⠿</span>
+    <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(name)}</span>
+    <button class="chip-remove"
+            onclick="removeMealEntry('${dateStr}','${meal}','${escAttr(name)}')"
+            title="Remove">✕</button>
+  </div>`;
+}
+
+/* ── Collapse/expand ── */
+function toggleCollapse(wKey) {
+  collapsed[wKey] = !collapsed[wKey];
+  renderCalendar();
+}
+
+/* ════════════════════════════════════════════════════════════
+   Escape helpers
+════════════════════════════════════════════════════════════ */
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/'/g,'&#39;').replace(/"/g,'&quot;');
+}
+
+/* ════════════════════════════════════════════════════════════
+   Boot
+════════════════════════════════════════════════════════════ */
+renderSidebar();
+renderCalendar();
+
+// Refresh sidebar if localStorage changes (e.g. from recipes.html tab)
+window.addEventListener('storage', e => {
+  if (e.key === RECIPE_KEY) { recipes = loadRecipes(); renderSidebar(); }
+  if (e.key === PLAN_KEY)   { plan    = loadPlan();    renderCalendar(); }
+});
+</script>
+</body>
+</html>
