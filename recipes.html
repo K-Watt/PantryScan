@@ -1017,19 +1017,7 @@
         </div>
         <div class="form-group">
           <label>Course</label>
-          <select id="rCourse">
-            <option value="">— Select —</option>
-            <option>Appetizers</option>
-            <option>Beverages</option>
-            <option>Breakfast</option>
-            <option>Desserts</option>
-            <option>Dinner</option>
-            <option>Lunch</option>
-            <option>Salads</option>
-            <option>Side Dishes</option>
-            <option>Snacks</option>
-            <option>Soups</option>
-          </select>
+          <select id="rCourse" onchange="handleCourseChange()"></select>
         </div>
         <div class="form-group">
           <label>Cuisine <span style="color:rgba(147,197,253,0.45);font-weight:400;">(multi-select)</span></label>
@@ -1065,6 +1053,7 @@
     ───────────────────────────────────────────── */
     const STORAGE_KEY   = 'pantryscan_recipes';
     const CUISINES_KEY  = 'pantryscan_cuisines';
+    const COURSES_KEY   = 'pantryscan_courses';
 
     /* ─────────────────────────────────────────────
        Cuisines store
@@ -1073,6 +1062,11 @@
       'African','American','Asian','Cajun','Caribbean','Central American',
       'Crock Pot','European','French','Greek','Indian','Italian','Latin',
       'Mediterranean','Mexican','Middle Eastern','Southern','Thai'
+    ];
+
+    const DEFAULT_COURSES = [
+      'Appetizers','Beverages','Breakfast','Desserts','Dinner',
+      'Lunch','Salads','Side Dishes','Snacks','Soups'
     ];
 
     function loadCuisines() {
@@ -1086,8 +1080,63 @@
       localStorage.setItem(CUISINES_KEY, JSON.stringify(list));
     }
 
+    function normalizeList(values) {
+      return [...new Set((values || [])
+        .map(v => (v || '').trim())
+        .filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
+    }
+
+    function loadCourses() {
+      try {
+        const s = JSON.parse(localStorage.getItem(COURSES_KEY));
+        return Array.isArray(s) ? normalizeList(s) : [...DEFAULT_COURSES];
+      } catch { return [...DEFAULT_COURSES]; }
+    }
+
+    function saveCourses(list) {
+      localStorage.setItem(COURSES_KEY, JSON.stringify(normalizeList(list)));
+    }
+
     let allCuisines = loadCuisines();
     let selectedCuisines = [];
+    let allCourses = loadCourses();
+
+    function populateCourseSelect(selected = '') {
+      const select = document.getElementById('rCourse');
+      if (!select) return;
+      const keep = selected || (select.value && select.value !== '__add_new_course__' ? select.value : '');
+      const options = normalizeList(allCourses);
+
+      select.innerHTML = '';
+      select.append(new Option('— Select —', ''));
+      options.forEach(c => select.append(new Option(c, c)));
+      select.append(new Option('＋ Add New Course...', '__add_new_course__'));
+
+      select.value = options.includes(keep) ? keep : '';
+    }
+
+    function handleCourseChange() {
+      const select = document.getElementById('rCourse');
+      if (!select || select.value !== '__add_new_course__') return;
+
+      const raw = prompt('Enter new course type:');
+      if (!raw || !raw.trim()) {
+        populateCourseSelect('');
+        return;
+      }
+
+      const name = raw.trim();
+      const existing = allCourses.find(c => c.toLowerCase() === name.toLowerCase());
+      if (existing) {
+        populateCourseSelect(existing);
+        return;
+      }
+
+      allCourses = normalizeList([...allCourses, name]);
+      saveCourses(allCourses);
+      populateCourseSelect(name);
+    }
 
     function cuisineCountFor(name) {
       return recipes.filter(r =>
@@ -1153,6 +1202,8 @@
     }
 
     let recipes = loadRecipes();
+    allCourses = normalizeList([...allCourses, ...recipes.map(r => r.course || '')]);
+    saveCourses(allCourses);
 
     /* ─────────────────────────────────────────────
        Filter state
@@ -1340,6 +1391,7 @@
     function openModal() {
       selectedCuisines = [];
       document.getElementById('addModal').classList.add('open');
+      populateCourseSelect('');
       document.getElementById('cuisineSearch').value = '';
       renderCuisineList('');
     }
@@ -1405,6 +1457,7 @@
       applyFilters();
     }
 
+    populateCourseSelect('');
     refreshAll();
   </script>
 </body>
