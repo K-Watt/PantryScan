@@ -114,6 +114,60 @@
       opacity: 0.8;
     }
 
+    .btn-import-url {
+      background: transparent;
+      color: #93c5fd;
+      border: 1px solid rgba(59,130,246,0.4);
+      padding: 9px 16px;
+      border-radius: 10px;
+      font-size: 0.93rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-import-url:hover {
+      background: rgba(59,130,246,0.15);
+      border-color: rgba(59,130,246,0.7);
+      color: #fff;
+    }
+    .modal-form textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 8px;
+      background: rgba(15,26,46,0.8);
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      resize: vertical;
+      font-family: inherit;
+      line-height: 1.5;
+    }
+    .modal-form textarea:focus {
+      outline: none;
+      border-color: rgba(59,130,246,0.6);
+      background: rgba(15,26,46,0.95);
+    }
+    .modal-form textarea::placeholder { color: rgba(147,197,253,0.5); }
+    .import-url-wrap { display: flex; gap: 10px; }
+    .import-url-wrap input { flex: 1; }
+    .import-error {
+      background: rgba(220,38,38,0.15);
+      border: 1px solid rgba(220,38,38,0.4);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #fca5a5;
+      font-size: 0.88rem;
+      margin-top: 10px;
+    }
+    .form-row-half {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
     .recipe-count-badge {
       background: rgba(59, 130, 246, 0.18);
       border: 1px solid rgba(59, 130, 246, 0.35);
@@ -837,6 +891,9 @@
         ＋ Add Recipe
         <span class="caret">▾</span>
       </button>
+      <button class="btn-import-url" id="openImportModal">
+        🔗 Import URL
+      </button>
       <span class="recipe-count-badge" id="recipeBadge">0 Recipes</span>
       <span class="draft-count" id="draftBadge"></span>
     </div>
@@ -1004,6 +1061,82 @@
   </div>
 
   <!-- ── Add Recipe Modal ── -->
+  <!-- Import URL modal -->
+  <div class="modal-overlay" id="importModal">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <h2>🔗 Import Recipe from URL</h2>
+        <button class="modal-close" onclick="closeImportModal()">✕</button>
+      </div>
+      <!-- Step 1: URL input -->
+      <div id="importStep1">
+        <div class="modal-form">
+          <div class="form-group">
+            <label>Recipe Page URL</label>
+            <div class="import-url-wrap">
+              <input type="url" id="importUrl" placeholder="https://www.allrecipes.com/recipe/..." />
+              <button type="button" class="btn-modal-submit" id="importFetchBtn" onclick="importRecipeUrl()">Fetch</button>
+            </div>
+          </div>
+          <div style="font-size:0.78rem;color:rgba(147,197,253,0.5);margin-top:-4px;margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span>API:</span>
+            <input id="importApiBaseInput" type="text"
+              style="font-family:monospace;background:rgba(255,255,255,0.07);border:1px solid rgba(147,197,253,0.25);border-radius:6px;color:rgba(147,197,253,0.9);padding:2px 8px;font-size:0.78rem;width:220px;"
+              placeholder="http://localhost:5169" />
+            <button type="button" onclick="saveImportApiBase()"
+              style="background:rgba(59,130,246,0.25);border:1px solid rgba(59,130,246,0.4);color:#93c5fd;border-radius:6px;padding:2px 10px;font-size:0.78rem;cursor:pointer;">Save</button>
+          </div>
+          <div id="importError"></div>
+        </div>
+      </div>
+      <!-- Step 2: Preview / edit -->
+      <div id="importStep2" style="display:none;">
+        <form class="modal-form" id="importRecipeForm" onsubmit="saveImportedRecipe(event)">
+          <div class="form-group">
+            <label>Recipe Name *</label>
+            <input type="text" id="iName" required />
+          </div>
+          <div class="form-row-half">
+            <div class="form-group">
+              <label>Course</label>
+              <input type="text" id="iCourse" placeholder="e.g. Dinner" />
+            </div>
+            <div class="form-group">
+              <label>Cuisine</label>
+              <input type="text" id="iCuisine" placeholder="e.g. Italian" />
+            </div>
+          </div>
+          <div class="form-row-half">
+            <div class="form-group">
+              <label>Source</label>
+              <input type="text" id="iSourceHost" />
+            </div>
+            <div class="form-group">
+              <label>Servings</label>
+              <input type="number" id="iServings" min="1" placeholder="4" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Tags <span style="color:rgba(147,197,253,0.5);font-weight:400;">(comma-separated)</span></label>
+            <input type="text" id="iTags" placeholder="e.g. Quick, Healthy" />
+          </div>
+          <div class="form-group">
+            <label>Ingredients <span style="color:rgba(147,197,253,0.5);font-weight:400;">(one per line)</span></label>
+            <textarea id="iIngredients" rows="5" placeholder="1 cup flour&#10;2 eggs"></textarea>
+          </div>
+          <div class="form-group">
+            <label>Instructions <span style="color:rgba(147,197,253,0.5);font-weight:400;">(one per line)</span></label>
+            <textarea id="iSteps" rows="5" placeholder="Preheat oven to 350°F..."></textarea>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-modal-cancel" onclick="showImportStep1()">← Back</button>
+            <button type="submit" class="btn-modal-submit">Save Recipe</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="addModal">
     <div class="modal">
       <div class="modal-header">
@@ -1047,13 +1180,16 @@
     </div>
   </div>
 
+  <script src="agent-data-service.js?v=2"></script>
   <script>
     /* ─────────────────────────────────────────────
        Data store  (persisted to localStorage)
     ───────────────────────────────────────────── */
     const STORAGE_KEY   = 'pantryscan_recipes';
+    const RECIPES_MIGRATED_KEY = 'pantryscan_recipes_migrated_to_sql_v1';
     const CUISINES_KEY  = 'pantryscan_cuisines';
     const COURSES_KEY   = 'pantryscan_courses';
+    const agentData = window.AgentDataService;
 
     /* ─────────────────────────────────────────────
        Cuisines store
@@ -1193,17 +1329,107 @@
     }
 
     function loadRecipes() {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-      catch { return []; }
+      return agentData.loadLocalRecipes();
     }
 
     function saveRecipes(list) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+      agentData.saveLocalRecipes(list);
     }
 
-    let recipes = loadRecipes();
-    allCourses = normalizeList([...allCourses, ...recipes.map(r => r.course || '')]);
-    saveCourses(allCourses);
+    function mapApiRecipe(row) {
+      const tagsRaw = row.tagsJson ?? row.TagsJson;
+      let tags = [];
+      try { tags = tagsRaw ? JSON.parse(tagsRaw) : []; } catch { tags = []; }
+      if (!Array.isArray(tags)) tags = [];
+
+      const addedAtRaw = row.addedAt ?? row.AddedAt ?? row.createdAt ?? row.CreatedAt;
+      const addedAtMs = addedAtRaw ? new Date(addedAtRaw).getTime() : Date.now();
+
+      return {
+        id: row.recipeId ?? row.RecipeId,
+        name: row.name ?? row.Name,
+        course: row.course ?? row.Course ?? 'Uncategorized',
+        cuisine: row.cuisine ?? row.Cuisine ?? '',
+        source: row.source ?? row.Source ?? '',
+        tags,
+        rating: row.rating ?? row.Rating ?? 0,
+        addedAt: Number.isFinite(addedAtMs) ? addedAtMs : Date.now()
+      };
+    }
+
+    function flattenRecipesForApi(list) {
+      return (list || []).map(r => ({
+        name: r.name,
+        course: r.course || 'Uncategorized',
+        cuisine: r.cuisine || null,
+        source: r.source || null,
+        tags: Array.isArray(r.tags) ? r.tags : [],
+        rating: Number.isFinite(r.rating) ? r.rating : 0,
+        addedAtUnixMs: Number.isFinite(r.addedAt) ? r.addedAt : Date.now(),
+        servings: null,
+        ingredients: [],
+        steps: []
+      }));
+    }
+
+    async function fetchRecipesFromApi() {
+      try {
+        const data = await agentData.fetchRecipes();
+        if (!data) return null;
+        return (data || []).map(mapApiRecipe);
+      } catch {
+        return null;
+      }
+    }
+
+    async function migrateLocalRecipesToApiIfNeeded() {
+      if (agentData.isRecipesMigrated()) return;
+
+      const local = loadRecipes();
+      if (!local.length) {
+        agentData.markRecipesMigrated();
+        return;
+      }
+
+      try {
+        const payload = flattenRecipesForApi(local);
+        const res = await agentData.bulkCreateRecipes(payload);
+        if (res.ok) {
+          agentData.markRecipesMigrated();
+        }
+      } catch {
+        // retry on next page load
+      }
+    }
+
+    async function createRecipeInApi(recipe) {
+      const payload = {
+        name: recipe.name,
+        course: recipe.course || 'Uncategorized',
+        cuisine: recipe.cuisine || null,
+        source: recipe.source || null,
+        tags: Array.isArray(recipe.tags) ? recipe.tags : [],
+        rating: Number.isFinite(recipe.rating) ? recipe.rating : 0,
+        addedAtUnixMs: Number.isFinite(recipe.addedAt) ? recipe.addedAt : Date.now(),
+        servings: Number.isFinite(recipe.servings) ? recipe.servings : null,
+        ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
+        steps: Array.isArray(recipe.steps) ? recipe.steps : []
+      };
+
+      const res = await agentData.createRecipe(payload);
+
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(body || `Recipe create failed (${res.status})`);
+      }
+    }
+
+    function syncCourseStoreFromRecipes() {
+      allCourses = normalizeList([...allCourses, ...recipes.map(r => r.course || '')]);
+      saveCourses(allCourses);
+    }
+
+    let recipes = [];
 
     /* ─────────────────────────────────────────────
        Filter state
@@ -1408,7 +1634,125 @@
       if (e.target === document.getElementById('addModal')) closeModal();
     });
 
-    function submitRecipe(e) {
+    /* ─────────────────────────────────────────────
+       Import URL
+    ───────────────────────────────────────────── */
+    function openImportModal() {
+      document.getElementById('importModal').classList.add('open');
+      showImportStep1();
+      const input = document.getElementById('importApiBaseInput');
+      if (input) input.value = agentData.getApiBase();
+    }
+    function saveImportApiBase() {
+      const input = document.getElementById('importApiBaseInput');
+      if (!input) return;
+      const val = input.value.trim().replace(/\/$/, '');
+      if (!val) return;
+      localStorage.setItem(agentData.keys.apiBase, val);
+      document.getElementById('importError').innerHTML =
+        `<div style="color:#86efac;font-size:0.85rem;margin-top:4px;">✓ API URL saved to <strong>${val}</strong>. Try fetching again.</div>`;
+    }
+    function closeImportModal() {
+      document.getElementById('importModal').classList.remove('open');
+    }
+    function showImportStep1() {
+      document.getElementById('importStep1').style.display = '';
+      document.getElementById('importStep2').style.display = 'none';
+      document.getElementById('importError').innerHTML = '';
+    }
+    async function importRecipeUrl() {
+      const url = document.getElementById('importUrl').value.trim();
+      if (!url) return;
+      const btn    = document.getElementById('importFetchBtn');
+      const errEl  = document.getElementById('importError');
+      errEl.innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = 'Fetching…';
+      const apiBase = agentData.getApiBase();
+      try {
+        const res  = await agentData.importRecipeUrl(url);
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          errEl.innerHTML = `<div class="import-error">${j.error || 'Import failed. Try a different URL.'}</div>`;
+          return;
+        }
+        const data = await res.json();
+        fillImportPreview(data);
+        document.getElementById('importStep1').style.display = 'none';
+        document.getElementById('importStep2').style.display = '';
+      } catch (err) {
+        // Try a quick connectivity check so we can give a better error
+        let connOk = false;
+        try {
+          const ac = new AbortController();
+          const t = setTimeout(() => ac.abort(), 3000);
+          const ping = await fetch(`${apiBase}/`, { method: 'GET', mode: 'cors', signal: ac.signal });
+          clearTimeout(t);
+          connOk = ping.ok;
+        } catch (_) { connOk = false; }
+
+        if (!connOk) {
+          errEl.innerHTML = `<div class="import-error">
+            Cannot reach the API at <strong>${apiBase}</strong>.<br>
+            If your API runs on a different port, update the URL above and hit <strong>Save</strong>, then try again.<br>
+            Otherwise make sure the API is running (<code>dotnet run</code>) and refresh.
+          </div>`;
+        } else {
+          errEl.innerHTML = `<div class="import-error">
+            The API is reachable but the import request failed.<br>
+            <strong>Error:</strong> ${err.message}<br>
+            <strong>Type:</strong> ${err.name}<br>
+            Open browser DevTools (F12 → Console) for more detail.
+          </div>`;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Fetch';
+      }
+    }
+    function fillImportPreview(data) {
+      document.getElementById('iName').value        = data.name        || '';
+      document.getElementById('iCourse').value      = data.course      || '';
+      document.getElementById('iCuisine').value     = data.cuisine     || '';
+      document.getElementById('iSourceHost').value  = data.source      || '';
+      document.getElementById('iServings').value    = data.servings    || '';
+      document.getElementById('iTags').value        = (data.tags        || []).join(', ');
+      document.getElementById('iIngredients').value = (data.ingredients || []).join('\n');
+      document.getElementById('iSteps').value       = (data.steps       || []).join('\n');
+    }
+    async function saveImportedRecipe(e) {
+      e.preventDefault();
+      const recipe = {
+        id:          nextId(),
+        name:        document.getElementById('iName').value.trim(),
+        course:      document.getElementById('iCourse').value.trim() || 'Uncategorized',
+        cuisine:     document.getElementById('iCuisine').value.trim(),
+        source:      document.getElementById('iSourceHost').value.trim(),
+        servings:    parseInt(document.getElementById('iServings').value) || null,
+        tags:        document.getElementById('iTags').value.split(',').map(t => t.trim()).filter(Boolean),
+        rating:      0,
+        addedAt:     Date.now(),
+        ingredients: document.getElementById('iIngredients').value.split('\n').map(l => l.trim()).filter(Boolean),
+        steps:       document.getElementById('iSteps').value.split('\n').map(l => l.trim()).filter(Boolean)
+      };
+      try {
+        await createRecipeInApi(recipe);
+        const apiRecipes = await fetchRecipesFromApi();
+        if (apiRecipes) { recipes = apiRecipes; saveRecipes(recipes); syncCourseStoreFromRecipes(); }
+      } catch (_) {
+        recipes.push(recipe);
+        saveRecipes(recipes);
+        syncCourseStoreFromRecipes();
+      }
+      closeImportModal();
+      refreshAll();
+    }
+    document.getElementById('openImportModal').addEventListener('click', openImportModal);
+    document.getElementById('importModal').addEventListener('click', e => {
+      if (e.target === document.getElementById('importModal')) closeImportModal();
+    });
+
+    async function submitRecipe(e) {
       e.preventDefault();
       const tagRaw = document.getElementById('rTags').value
         .split(',').map(t => t.trim()).filter(Boolean);
@@ -1424,8 +1768,24 @@
         addedAt: Date.now()
       };
 
+      try {
+        await createRecipeInApi(recipe);
+        const apiRecipes = await fetchRecipesFromApi();
+        if (apiRecipes) {
+          recipes = apiRecipes;
+          saveRecipes(recipes);
+          syncCourseStoreFromRecipes();
+          closeModal();
+          refreshAll();
+          return;
+        }
+      } catch (err) {
+        console.warn('[Recipes Sync] create failed, using local fallback:', err);
+      }
+
       recipes.push(recipe);
       saveRecipes(recipes);
+      syncCourseStoreFromRecipes();
       closeModal();
       refreshAll();
     }
@@ -1457,8 +1817,17 @@
       applyFilters();
     }
 
-    populateCourseSelect('');
-    refreshAll();
+    async function bootRecipes() {
+      await migrateLocalRecipesToApiIfNeeded();
+      const apiRecipes = await fetchRecipesFromApi();
+      recipes = apiRecipes || loadRecipes();
+      saveRecipes(recipes);
+      syncCourseStoreFromRecipes();
+      populateCourseSelect('');
+      refreshAll();
+    }
+
+    bootRecipes();
   </script>
 </body>
 </html>

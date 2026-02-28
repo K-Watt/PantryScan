@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Start PantryScan API",
+			"type": "shell",
+			"command": "Get-Process -Name dotnet,PantryScan.Api -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500; dotnet run --project api/PantryScan.Api/PantryScan.Api.csproj",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

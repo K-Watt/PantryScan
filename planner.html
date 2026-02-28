@@ -712,12 +712,15 @@
   </div><!-- /calendar-area -->
 </div><!-- /app-shell -->
 
+<script src="agent-data-service.js"></script>
 <script>
 /* ════════════════════════════════════════════════════════════
    Constants & state
 ════════════════════════════════════════════════════════════ */
 const RECIPE_KEY  = 'pantryscan_recipes';
 const PLAN_KEY    = 'pantryscan_plan';       // { 'YYYY-MM-DD': { Breakfast:[…], Lunch:[…], … } }
+const PLAN_MIGRATED_KEY = 'pantryscan_plan_migrated_to_sql_v1';
+const agentData = window.AgentDataService;
 const MEALS       = ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Notes'];
 const DAY_NAMES   = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
 const MONTH_NAMES = ['January','February','March','April','May','June',
@@ -731,12 +734,142 @@ let dragRecipeName = null;        // recipe being dragged from sidebar
 let collapsed      = {};          // { 'week-key': true }
 
 /* ── Persistence ── */
-function loadRecipes() { try { return JSON.parse(localStorage.getItem(RECIPE_KEY)) || []; } catch { return []; } }
-function loadPlan()    { try { return JSON.parse(localStorage.getItem(PLAN_KEY))    || {}; } catch { return {}; } }
-function savePlan(p)   { localStorage.setItem(PLAN_KEY, JSON.stringify(p)); }
+function loadRecipes() { return agentData.loadLocalRecipes(); }
+function loadPlan()    { return agentData.loadLocalPlan(); }
+function savePlan(p)   { agentData.saveLocalPlan(p); }
 
 let recipes = loadRecipes();
-let plan    = loadPlan();
+let plan    = {};
+
+function mapApiRowsToPlan(rows) {
+  const result = {};
+  for (const row of rows || []) {
+    const dateStr = String(row.planDate || row.PlanDate || '').slice(0, 10);
+    if (!dateStr) continue;
+
+    if (!result[dateStr]) result[dateStr] = {};
+
+    const mealType = row.mealType || row.MealType;
+    if (!mealType) continue;
+
+    if (mealType === 'Notes') {
+      result[dateStr].Notes = row.notes || row.Notes || '';
+      continue;
+    }
+
+    if (!result[dateStr][mealType]) result[dateStr][mealType] = [];
+
+    const recipeName = row.recipeName || row.RecipeName;
+    if (recipeName && !result[dateStr][mealType].includes(recipeName)) {
+      result[dateStr][mealType].push(recipeName);
+    }
+  }
+  return result;
+}
+
+function flattenPlanForApi(planObj) {
+  const entries = [];
+  Object.entries(planObj || {}).forEach(([dateStr, dayPlan]) => {
+    if (!dayPlan || typeof dayPlan !== 'object') return;
+
+    Object.entries(dayPlan).forEach(([meal, value]) => {
+      if (meal === 'Notes') {
+        if (value && String(value).trim()) {
+          entries.push({
+            planDate: dateStr,
+            mealType: 'Notes',
+            recipeId: null,
+            recipeName: 'Note',
+            notes: String(value)
+          });
+        }
+        return;
+      }
+
+      const names = Array.isArray(value) ? value : [];
+      names.forEach(name => {
+        if (!name) return;
+        entries.push({
+          planDate: dateStr,
+          mealType: meal,
+          recipeId: null,
+          recipeName: String(name),
+          notes: null
+        });
+      });
+    });
+  });
+  return entries;
+}
+
+async function fetchPlanFromApi() {
+  try {
+    const rows = await agentData.fetchMealPlans();
+    if (!rows) return null;
+    return mapApiRowsToPlan(rows);
+  } catch {
+    return null;
+  }
+}
+
+async function migrateLocalPlanToApiIfNeeded() {
+  if (agentData.isPlanMigrated()) return;
+
+  const localPlan = loadPlan();
+  const entries = flattenPlanForApi(localPlan);
+  if (!entries.length) {
+    agentData.markPlanMigrated();
+    return;
+  }
+
+  try {
+    const res = await agentData.bulkUpsertMealPlans(entries);
+
+    if (res.ok) {
+      agentData.markPlanMigrated();
+    }
+  } catch {
+    // keep local data; retry next visit
+  }
+}
+
+async function syncMealEntryToApi(dateStr, meal, recipeName) {
+  if (meal === 'Notes') return;
+
+  try {
+    const res = await agentData.upsertMealPlanEntry({
+      planDate: dateStr,
+      mealType: meal,
+      recipeId: null,
+      recipeName,
+      notes: null
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.warn('[Planner Sync] API write failed:', res.status, body);
+    }
+  } catch (err) {
+    console.warn('[Planner Sync] Network/API error:', err);
+  }
+}
+
+async function syncMealRemovalToApi(dateStr, meal, recipeName) {
+  if (!recipeName) return;
+  try {
+    await agentData.deleteMealPlanEntry(dateStr, meal, recipeName);
+  } catch (err) {
+    console.warn('[Planner Sync] delete failed:', err);
+  }
+}
+
+async function syncNoteToApi(dateStr, note) {
+  try {
+    await agentData.upsertMealPlanNote(dateStr, note || null);
+  } catch (err) {
+    console.warn('[Planner Sync] note update failed:', err);
+  }
+}
 
 /* ════════════════════════════════════════════════════════════
    Sidebar
@@ -793,7 +926,7 @@ function filterSidebar() {
 function toggleStar(name) {
   const all = loadRecipes();
   const r   = all.find(x => x.name === name);
-  if (r) { r.rating = r.rating > 0 ? 0 : 5; localStorage.setItem(RECIPE_KEY, JSON.stringify(all)); }
+  if (r) { r.rating = r.rating > 0 ? 0 : 5; agentData.saveLocalRecipes(all); }
   renderSidebar(document.getElementById('sidebarSearch').value);
 }
 
@@ -832,14 +965,23 @@ function onSlotDrop(e, dateStr, meal) {
 function addMealEntry(dateStr, meal, name) {
   if (!plan[dateStr])       plan[dateStr] = {};
   if (!plan[dateStr][meal]) plan[dateStr][meal] = [];
-  if (!plan[dateStr][meal].includes(name)) plan[dateStr][meal].push(name);
+  let wasAdded = false;
+  if (!plan[dateStr][meal].includes(name)) {
+    plan[dateStr][meal].push(name);
+    wasAdded = true;
+  }
   savePlan(plan);
+  if (wasAdded) {
+    syncMealEntryToApi(dateStr, meal, name);
+  }
 }
 
 function removeMealEntry(dateStr, meal, name) {
   if (!plan[dateStr]?.[meal]) return;
   plan[dateStr][meal] = plan[dateStr][meal].filter(n => n !== name);
+  if (plan[dateStr][meal].length === 0) delete plan[dateStr][meal];
   savePlan(plan);
+  syncMealRemovalToApi(dateStr, meal, name);
   renderCalendar();
 }
 
@@ -847,6 +989,7 @@ function saveNote(dateStr, val) {
   if (!plan[dateStr]) plan[dateStr] = {};
   plan[dateStr]['Notes'] = val;
   savePlan(plan);
+  syncNoteToApi(dateStr, val);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1132,8 +1275,22 @@ function escAttr(s) {
 /* ════════════════════════════════════════════════════════════
    Boot
 ════════════════════════════════════════════════════════════ */
-renderSidebar();
-renderCalendar();
+async function bootPlanner() {
+  await migrateLocalPlanToApiIfNeeded();
+
+  const apiPlan = await fetchPlanFromApi();
+  if (apiPlan) {
+    plan = apiPlan;
+    savePlan(plan);
+  } else {
+    plan = loadPlan();
+  }
+
+  renderSidebar();
+  renderCalendar();
+}
+
+bootPlanner();
 
 // Refresh sidebar if localStorage changes (e.g. from recipes.html tab)
 window.addEventListener('storage', e => {

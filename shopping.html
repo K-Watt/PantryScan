@@ -498,6 +498,7 @@
   </div>
 </div>
 
+<script src="agent-data-service.js"></script>
 <script>
 /* ════════════════════════════════════════════
    Storage keys & helpers
@@ -505,11 +506,12 @@
 const RECIPE_KEY   = 'pantryscan_recipes';
 const PLAN_KEY     = 'pantryscan_plan';
 const SHOP_KEY     = 'pantryscan_shopping';   // { items:[], checked:{}, dateStart, dateEnd }
+const agentData = window.AgentDataService;
 
-function loadRecipes(){ try{ return JSON.parse(localStorage.getItem(RECIPE_KEY))||[]; }catch{ return []; } }
-function loadPlan()   { try{ return JSON.parse(localStorage.getItem(PLAN_KEY))   ||{}; }catch{ return {}; } }
-function loadShop()   { try{ return JSON.parse(localStorage.getItem(SHOP_KEY))   ||{ items:[], checked:{} }; }catch{ return { items:[], checked:{} }; } }
-function saveShop(s)  { localStorage.setItem(SHOP_KEY, JSON.stringify(s)); }
+function loadRecipes(){ return agentData.loadLocalRecipes(); }
+function loadPlan()   { return agentData.loadLocalPlan(); }
+function loadShop()   { return agentData.loadShopping(); }
+function saveShop(s)  { agentData.saveShopping(s); }
 
 function toISO(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
 function fmtDate(iso){ const [y,m,d]=iso.split('-'); const dt=new Date(y,m-1,d); return dt.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}); }
@@ -834,6 +836,7 @@ function toggleStoreAll(storeId, cb){
 function toggleCheck(id, val){
   shop.checked[id] = val;
   saveShop(shop);
+  agentData.checkShoppingItem(id, val).catch(() => {});
   const row = document.getElementById('irow_'+id);
   if(row) row.classList.toggle('checked', val);
   if(document.getElementById('tHideChecked').checked) renderList();
@@ -843,12 +846,14 @@ function deleteItem(id){
   shop.items = (shop.items||[]).filter(it=>it.id!==id);
   delete shop.checked[id];
   saveShop(shop);
+  agentData.deleteShoppingItem(id).catch(() => {});
   renderList();
 }
 
 function resetChecked(){
   shop.checked = {};
   saveShop(shop);
+  agentData.clearCheckedShoppingItems().catch(() => {});
   renderList();
 }
 
@@ -893,6 +898,7 @@ function submitItem(e){
 
   shop.items.push({ id, name, qty, category: cat||'Other', store, note, recipes });
   saveShop(shop);
+  agentData.addShoppingItem({ clientId: id, name, qty, category: cat||'Other', store, note, recipes }).catch(() => {});
   closeAddModal();
   renderList();
   renderSidebar();
@@ -904,10 +910,41 @@ function openCatModal(){}     // placeholder
 /* ════════════════════════════════════════════
    Boot
 ════════════════════════════════════════════ */
+// Render immediately from localStorage cache
 initRange();
 buildPlannedMap();
 renderSidebar();
 renderList();
+
+// Async: one-time migration + load from SQL
+(async () => {
+  try {
+    const localShop = agentData.loadShopping();
+    if (!agentData.isShoppingMigrated()) {
+      if ((localShop.items || []).length > 0) {
+        const bulkItems = (localShop.items || []).map(it => ({
+          clientId: it.id,
+          name: it.name,
+          qty: it.qty || '',
+          category: it.category || 'Other',
+          store: it.store || '',
+          note: it.note || '',
+          recipes: it.recipes || [],
+          checked: !!((localShop.checked || {})[it.id])
+        }));
+        await agentData.bulkCreateShoppingItems(bulkItems);
+      }
+      agentData.markShoppingMigrated();
+    }
+    const apiShop = await agentData.fetchShopping();
+    if (apiShop) {
+      shop.items = apiShop.items || [];
+      shop.checked = apiShop.checked || {};
+      agentData.saveShopping(shop);
+      renderList();
+    }
+  } catch (_) { /* keep local data on API failure */ }
+})();
 
 window.addEventListener('storage', e => {
   if(e.key===PLAN_KEY||e.key===RECIPE_KEY){ buildPlannedMap(); renderSidebar(); renderList(); }
