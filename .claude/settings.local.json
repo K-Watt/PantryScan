@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"Get-Service -Name ''MSSQLSERVER'' -ErrorAction SilentlyContinue | Select-Object Name, Status\")",
+      "Bash(dotnet run)",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 5169 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalPort, State\")",
+      "Bash(powershell -Command \"Get-Process -Name ''dotnet'' -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500; Write-Output ''stopped''\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5169/recipes)",
+      "Bash(curl -s http://localhost:5169/recipes)",
+      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); r=data[0]; print\\(''Fields:'', list\\(r.keys\\(\\)\\)\\)\")",
+      "Bash(curl -s \"https://www.themealdb.com/api/json/v1/1/search.php?s=chicken+tikka\")",
+      "Bash(curl -s \"https://www.themealdb.com/api/json/v1/1/search.php?s=Chicken+Tikka+Masala\")",
+      "Bash(curl -s \"https://en.wikipedia.org/api/rest_v1/page/summary/Jalape%C3%B1o_popper\")",
+      "Bash(curl -s \"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=bacon+wrapped+jalapeno+poppers&srlimit=1&format=json&origin=*\")",
+      "Bash(curl -s \"https://www.themealdb.com/api/json/v1/1/search.php?s=Spicy+Arrabiata+Penne\")",
+      "Bash(curl -s \"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=marry+me+chicken&srlimit=1&format=json&origin=*\")"
+    ]
+  }
+}

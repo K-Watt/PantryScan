@@ -518,6 +518,31 @@
 
     .card-menu-btn:hover { background: rgba(59,130,246,0.55); }
 
+    /* Auto-find image button on card */
+    .card-find-img-btn {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.55);
+      border: none;
+      border-radius: 7px;
+      padding: 4px 9px;
+      color: #7dd3fc;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      line-height: 1.4;
+      opacity: 0;
+      transition: opacity 0.2s, background 0.2s;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .recipe-card:hover .card-find-img-btn { opacity: 1; }
+    .card-find-img-btn:hover { background: rgba(37,99,235,0.7); }
+    .card-find-img-btn.loading { color: #fbbf24; cursor: wait; }
+    .card-find-img-btn.found   { color: #4ade80; }
+    .card-find-img-btn.failed  { color: #f87171; }
+
     /* Star rating on image */
     .card-stars {
       position: absolute;
@@ -856,6 +881,129 @@
       text-align: center;
     }
 
+    /* ── Course Picker Modal ── */
+    .cp-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65);
+      z-index: 3000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .cp-overlay.open { display: flex; }
+    .cp-modal {
+      background: linear-gradient(135deg, #0f1e3a 0%, #0a1628 100%);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 14px;
+      width: 300px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .cp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+    }
+    .cp-title { font-size: 1rem; font-weight: 700; color: #e2e8f0; }
+    .cp-close-x {
+      background: none; border: none;
+      color: rgba(147,197,253,0.5); font-size: 1.1rem;
+      cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    .cp-close-x:hover { color: #e2e8f0; }
+    .cp-body {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(59,130,246,0.1);
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .cp-add-btn {
+      background: rgba(30,58,95,0.8); color: #60a5fa;
+      border: 1px solid rgba(59,130,246,0.35); border-radius: 8px;
+      padding: 7px 13px; font-size: 0.83rem; font-weight: 600;
+      cursor: pointer; text-align: left;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .cp-add-btn:hover { background: rgba(30,80,140,0.8); border-color: #3b82f6; }
+    .cp-search {
+      width: 100%; background: rgba(15,26,46,0.9);
+      border: 1px solid rgba(59,130,246,0.25); border-radius: 8px;
+      color: #e2e8f0; padding: 7px 11px; font-size: 0.85rem; box-sizing: border-box;
+    }
+    .cp-search:focus { outline: none; border-color: #3b82f6; }
+    .cp-search::placeholder { color: rgba(147,197,253,0.4); }
+    .cp-list { flex: 1; overflow-y: auto; min-height: 0; }
+    .cp-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; cursor: pointer;
+      border-bottom: 1px solid rgba(59,130,246,0.06);
+      transition: background 0.12s; user-select: none;
+    }
+    .cp-item:last-child { border-bottom: none; }
+    .cp-item:hover { background: rgba(59,130,246,0.09); }
+    .cp-item.selected { background: rgba(59,130,246,0.14); }
+    .cp-radio {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(147,197,253,0.35); flex-shrink: 0;
+      position: relative; transition: border-color 0.15s, background 0.15s;
+    }
+    .cp-item.selected .cp-radio { border-color: #3b82f6; background: #3b82f6; }
+    .cp-item.selected .cp-radio::after {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 6px; height: 6px; border-radius: 50%; background: #fff;
+    }
+    .cp-name { flex: 1; font-size: 0.9rem; color: #e2e8f0; }
+    .cp-badge {
+      background: rgba(30,58,95,0.9); color: #60a5fa;
+      border-radius: 12px; min-width: 22px; height: 20px;
+      padding: 0 6px; display: inline-flex; align-items: center;
+      justify-content: center; font-size: 0.73rem; font-weight: 700;
+    }
+    .cp-del-btn {
+      background: none; border: none; color: rgba(147,197,253,0.35);
+      font-size: 0.9rem; cursor: pointer; padding: 2px 4px; border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .cp-del-btn:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+    .cp-empty {
+      padding: 16px; color: rgba(147,197,253,0.4);
+      font-size: 0.82rem; text-align: center;
+    }
+    .cp-footer {
+      padding: 10px 12px; border-top: 1px solid rgba(59,130,246,0.15);
+      display: flex; gap: 8px; justify-content: flex-end;
+    }
+    .cp-save-btn {
+      background: #3b82f6; color: #fff; border: none; border-radius: 8px;
+      padding: 7px 16px; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; transition: background 0.15s;
+    }
+    .cp-save-btn:hover { background: #2563eb; }
+    .cp-cancel-btn {
+      background: rgba(30,58,95,0.6); color: #93c5fd;
+      border: 1px solid rgba(59,130,246,0.25); border-radius: 8px;
+      padding: 7px 16px; font-size: 0.85rem; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cp-cancel-btn:hover { background: rgba(30,58,95,0.9); }
+    .cp-trigger {
+      width: 100%; background: rgba(15,26,46,0.8);
+      border: 1px solid rgba(59,130,246,0.25); border-radius: 8px;
+      color: #e2e8f0; padding: 8px 12px; font-size: 0.9rem;
+      cursor: pointer; text-align: left; display: flex;
+      align-items: center; justify-content: space-between;
+      transition: border-color 0.15s; box-sizing: border-box;
+    }
+    .cp-trigger:hover, .cp-trigger:focus { border-color: #3b82f6; outline: none; }
+    .cp-trigger-arrow { color: rgba(147,197,253,0.5); font-size: 0.75rem; }
+    .cp-trigger-val { color: #e2e8f0; }
+    .cp-trigger-placeholder { color: rgba(147,197,253,0.4); }
+
     /* ── Scrollbar ── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: rgba(15,20,25,0.5); }
@@ -867,6 +1015,541 @@
       .filter-sidebar { display: none; }
       .recipe-area { padding: 16px; }
     }
+
+    /* ── Recipe detail panel ── */
+    .detail-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(5px);
+      z-index: 300;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .detail-overlay.open { display: flex; }
+
+    .detail-panel {
+      background: linear-gradient(160deg, #0d1829, #111827);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 18px;
+      width: 100%;
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+      animation: slideUp 0.25s ease;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(59,130,246,0.3) transparent;
+    }
+
+    .detail-panel-header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: linear-gradient(160deg, #0d1829, #111827);
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      gap: 12px;
+    }
+
+    .detail-close-btn {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      color: #9ca3af;
+      font-size: 1rem;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      flex-shrink: 0;
+    }
+    .detail-close-btn:hover { background: rgba(239,68,68,0.2); color: #f87171; }
+
+    .detail-panel-title {
+      flex: 1;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #e5e7eb;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-lock-btn {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      font-size: 1.1rem;
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+      flex-shrink: 0;
+    }
+    .detail-lock-btn:hover { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.4); }
+    .detail-lock-btn.unlocked { background: rgba(245,158,11,0.15); border-color: rgba(245,158,11,0.4); }
+
+    .detail-body { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+
+    .detail-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .detail-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(30,64,175,0.2);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 8px;
+      padding: 5px 11px;
+      font-size: 0.82rem;
+      color: #7dd3fc;
+    }
+
+    .detail-section { display: flex; flex-direction: column; gap: 8px; }
+
+    .detail-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(147,197,253,0.55);
+    }
+
+    .detail-stars-row { display: flex; gap: 4px; align-items: center; }
+    .detail-star {
+      font-size: 1.5rem;
+      cursor: pointer;
+      transition: transform 0.1s, color 0.1s;
+      line-height: 1;
+    }
+    .detail-star.lit { color: #f59e0b; }
+    .detail-star.dim { color: rgba(255,255,255,0.2); }
+    .detail-star:hover { transform: scale(1.2); }
+
+    .detail-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .detail-list li {
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 8px;
+      color: #d1d5db;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .detail-list li::before { content: counter(step); counter-increment: step; }
+    ol.detail-list { counter-reset: step; }
+    ol.detail-list li { display: flex; gap: 10px; }
+    ol.detail-list li::before {
+      content: counter(step);
+      counter-increment: step;
+      background: rgba(59,130,246,0.25);
+      color: #93c5fd;
+      border-radius: 50%;
+      min-width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .detail-tags-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .detail-comments-area {
+      width: 100%;
+      min-height: 90px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 10px;
+      color: #d1d5db;
+      font-size: 0.9rem;
+      padding: 10px 12px;
+      resize: vertical;
+      font-family: inherit;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+    .detail-comments-area:focus { outline: none; border-color: rgba(59,130,246,0.55); }
+    .detail-comments-area::placeholder { color: rgba(147,197,253,0.3); }
+
+    .detail-edit-input,
+    .detail-edit-textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 0.9rem;
+      padding: 8px 12px;
+      font-family: inherit;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+    .detail-edit-input:focus,
+    .detail-edit-textarea:focus { outline: none; border-color: rgba(59,130,246,0.6); }
+    .detail-edit-textarea { resize: vertical; min-height: 90px; }
+
+    .detail-save-row {
+      display: flex;
+      justify-content: flex-end;
+      padding-top: 4px;
+    }
+    .detail-save-btn {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.92rem;
+      font-weight: 600;
+      padding: 10px 26px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .detail-save-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+
+    .detail-empty { color: rgba(147,197,253,0.35); font-size: 0.85rem; font-style: italic; }
+
+    /* ── Edit mode — wider panel ── */
+    .detail-panel.edit-mode { max-width: 900px; }
+
+    .edit-header-label {
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #93c5fd;
+    }
+    .edit-save-btn {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 7px 18px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .edit-save-btn:hover { opacity: 0.85; }
+    .edit-cancel-btn {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 8px;
+      color: #9ca3af;
+      font-size: 0.88rem;
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .edit-cancel-btn:hover { border-color: rgba(255,255,255,0.38); color: #e5e7eb; }
+
+    /* Two-column layout */
+    .detail-edit-layout {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+    .detail-edit-left {
+      flex: 1 1 52%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .detail-edit-right {
+      flex: 1 1 48%;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    @media (max-width: 640px) {
+      .detail-edit-layout { flex-direction: column; }
+    }
+
+    /* Image box */
+    .detail-img-box {
+      position: relative;
+      background: rgba(30,64,175,0.1);
+      border: 1px dashed rgba(59,130,246,0.3);
+      border-radius: 12px;
+      height: 200px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      color: rgba(147,197,253,0.35);
+      font-size: 0.82rem;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .detail-img-box:hover { border-color: rgba(59,130,246,0.5); }
+    .detail-img-box .ph-icon { font-size: 2.4rem; }
+    .detail-img-box img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .detail-img-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 8px;
+      padding-bottom: 12px;
+      transition: background 0.2s;
+    }
+    .detail-img-box:hover .detail-img-overlay { background: rgba(0,0,0,0.45); }
+    .update-photo-btn {
+      opacity: 0;
+      background: rgba(15,26,46,0.9);
+      border: 1px solid rgba(59,130,246,0.4);
+      border-radius: 8px;
+      color: #7dd3fc;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: opacity 0.2s, background 0.2s;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+    .detail-img-box:hover .update-photo-btn { opacity: 1; }
+
+    /* Image picker modal */
+    .img-picker-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(5px);
+      z-index: 400;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .img-picker-overlay.open { display: flex; }
+    .img-picker-modal {
+      background: linear-gradient(160deg, #0f1a2e, #111827);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      animation: slideUp 0.2s ease;
+      overflow: hidden;
+    }
+    .img-picker-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+    }
+    .img-picker-header h3 { color: #60a5fa; font-size: 1rem; font-weight: 700; }
+    .img-picker-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .img-picker-tabs {
+      display: flex;
+      border-bottom: 1px solid rgba(59,130,246,0.18);
+      margin-bottom: 4px;
+    }
+    .img-picker-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: rgba(147,197,253,0.45);
+      font-size: 0.87rem;
+      font-weight: 600;
+      padding: 7px 14px;
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .img-picker-tab:hover { color: #93c5fd; }
+    .img-picker-tab.active { color: #60a5fa; border-bottom-color: #2563eb; }
+    .img-drop-zone {
+      border: 2px dashed rgba(59,130,246,0.3);
+      border-radius: 10px;
+      padding: 28px 16px;
+      text-align: center;
+      color: rgba(147,197,253,0.5);
+      font-size: 0.87rem;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .img-drop-zone:hover, .img-drop-zone.drag-over {
+      border-color: rgba(59,130,246,0.6);
+      background: rgba(59,130,246,0.07);
+      color: #93c5fd;
+    }
+    .img-drop-icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+    .img-preview-box {
+      border-radius: 10px;
+      overflow: hidden;
+      height: 160px;
+      display: none;
+      background: rgba(0,0,0,0.3);
+    }
+    .img-preview-box.visible { display: block; }
+    .img-preview-box img { width: 100%; height: 100%; object-fit: cover; }
+    .img-url-input {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 8px;
+      color: #e5e7eb;
+      font-size: 0.9rem;
+      padding: 9px 12px;
+      font-family: inherit;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .img-url-input:focus { outline: none; border-color: rgba(59,130,246,0.6); }
+    .img-url-input::placeholder { color: rgba(147,197,253,0.3); }
+    .img-search-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(59,130,246,0.1);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 8px;
+      color: #7dd3fc;
+      font-size: 0.84rem;
+      padding: 7px 14px;
+      text-decoration: none;
+      transition: background 0.2s, border-color 0.2s;
+      width: fit-content;
+    }
+    .img-search-link:hover { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.45); }
+    .img-picker-footer {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      padding: 14px 20px;
+      border-top: 1px solid rgba(59,130,246,0.12);
+    }
+
+    /* Ingredient tabs */
+    .ing-tab-bar {
+      display: flex;
+      border-bottom: 1px solid rgba(59,130,246,0.18);
+    }
+    .ing-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: rgba(147,197,253,0.45);
+      font-size: 0.84rem;
+      font-weight: 600;
+      padding: 7px 13px;
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .ing-tab:hover { color: #93c5fd; }
+    .ing-tab.active { color: #60a5fa; border-bottom-color: #2563eb; }
+
+    /* Ingredient table */
+    .ing-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .ing-table th {
+      text-align: left;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(147,197,253,0.4);
+      padding: 6px 4px 5px;
+      border-bottom: 1px solid rgba(59,130,246,0.12);
+    }
+    .ing-row td { padding: 3px 3px; vertical-align: middle; }
+    .ing-input {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 0.86rem;
+      padding: 5px 7px;
+      font-family: inherit;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .ing-input:focus { outline: none; border-color: rgba(59,130,246,0.55); }
+    .ing-drag {
+      color: rgba(147,197,253,0.25);
+      font-size: 1rem;
+      cursor: grab;
+      padding: 0 3px;
+      user-select: none;
+      display: block;
+      text-align: center;
+    }
+    .ing-del-btn {
+      background: transparent;
+      border: none;
+      color: rgba(239,68,68,0.45);
+      font-size: 1rem;
+      cursor: pointer;
+      padding: 3px 5px;
+      border-radius: 4px;
+      transition: color 0.2s, background 0.2s;
+      line-height: 1;
+    }
+    .ing-del-btn:hover { color: #f87171; background: rgba(239,68,68,0.1); }
+    .ing-add-bar {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .ing-add-btn {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 7px;
+      color: #7dd3fc;
+      font-size: 0.82rem;
+      padding: 5px 13px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .ing-add-btn:hover { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.4); }
   </style>
 </head>
 <body>
@@ -1150,7 +1833,11 @@
         </div>
         <div class="form-group">
           <label>Course</label>
-          <select id="rCourse" onchange="handleCourseChange()"></select>
+          <button type="button" class="cp-trigger" id="rCourseTrigger" data-value=""
+            onclick="openCoursePicker('add', this.dataset.value)">
+            <span class="cp-trigger-placeholder">Select a course...</span>
+            <span class="cp-trigger-arrow">▼</span>
+          </button>
         </div>
         <div class="form-group">
           <label>Cuisine <span style="color:rgba(147,197,253,0.45);font-weight:400;">(multi-select)</span></label>
@@ -1238,40 +1925,105 @@
     let selectedCuisines = [];
     let allCourses = loadCourses();
 
-    function populateCourseSelect(selected = '') {
-      const select = document.getElementById('rCourse');
-      if (!select) return;
-      const keep = selected || (select.value && select.value !== '__add_new_course__' ? select.value : '');
-      const options = normalizeList(allCourses);
+    /* ── Course Picker ── */
+    let cpContext = '';        // 'add' | 'edit'
+    let cpSelectedCourse = ''; // currently selected inside the modal
 
-      select.innerHTML = '';
-      select.append(new Option('— Select —', ''));
-      options.forEach(c => select.append(new Option(c, c)));
-      select.append(new Option('＋ Add New Course...', '__add_new_course__'));
-
-      select.value = options.includes(keep) ? keep : '';
+    function courseCountFor(name) {
+      return recipes.filter(r => (r.course || 'Uncategorized') === name).length;
     }
 
-    function handleCourseChange() {
-      const select = document.getElementById('rCourse');
-      if (!select || select.value !== '__add_new_course__') return;
+    function openCoursePicker(context, currentValue) {
+      cpContext = context;
+      cpSelectedCourse = currentValue || '';
+      document.getElementById('cpSearch').value = '';
+      renderCoursePickerList('');
+      document.getElementById('cpOverlay').classList.add('open');
+    }
 
+    function closeCoursePicker(save) {
+      if (save) applyPickerCourseToContext();
+      document.getElementById('cpOverlay').classList.remove('open');
+    }
+
+    function applyPickerCourseToContext() {
+      const val = cpSelectedCourse;
+      if (cpContext === 'add') {
+        const trigger = document.getElementById('rCourseTrigger');
+        if (trigger) {
+          trigger.dataset.value = val;
+          const span = trigger.querySelector('span:first-child');
+          if (span) {
+            span.className = val ? 'cp-trigger-val' : 'cp-trigger-placeholder';
+            span.textContent = val || 'Select a course...';
+          }
+        }
+      } else if (cpContext === 'edit') {
+        const trigger = document.getElementById('editCourseTrigger');
+        if (trigger) {
+          trigger.dataset.value = val;
+          const span = trigger.querySelector('span:first-child');
+          if (span) {
+            span.className = val ? 'cp-trigger-val' : 'cp-trigger-placeholder';
+            span.textContent = val || 'Select a course...';
+          }
+        }
+      }
+    }
+
+    function renderCoursePickerList(filter) {
+      const list = document.getElementById('cpList');
+      if (!list) return;
+      const q = (filter || '').toLowerCase().trim();
+      const visible = allCourses.filter(c => !q || c.toLowerCase().includes(q));
+      if (!visible.length) {
+        list.innerHTML = '<div class="cp-empty">No courses found</div>';
+        return;
+      }
+      list.innerHTML = visible.map(c => {
+        const esc = c.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const sel = cpSelectedCourse === c;
+        const count = courseCountFor(c);
+        return `
+          <div class="cp-item${sel ? ' selected' : ''}" onclick="selectCourseInPicker('${esc}')">
+            <div class="cp-radio"></div>
+            <span class="cp-name">${escHtml(c)}</span>
+            ${count ? `<span class="cp-badge">${count}</span>` : ''}
+            <button class="cp-del-btn" onclick="event.stopPropagation();deleteCoursePicker('${esc}')" title="Delete">🗑</button>
+          </div>`;
+      }).join('');
+    }
+
+    function selectCourseInPicker(name) {
+      cpSelectedCourse = name;
+      renderCoursePickerList(document.getElementById('cpSearch')?.value || '');
+    }
+
+    function deleteCoursePicker(name) {
+      const count = courseCountFor(name);
+      if (count > 0 && !confirm(`"${name}" is used by ${count} recipe(s). Remove it from the list anyway?`)) return;
+      allCourses = allCourses.filter(c => c !== name);
+      saveCourses(allCourses);
+      if (cpSelectedCourse === name) cpSelectedCourse = '';
+      renderCoursePickerList(document.getElementById('cpSearch')?.value || '');
+    }
+
+    function addNewCourseFromPicker() {
       const raw = prompt('Enter new course type:');
-      if (!raw || !raw.trim()) {
-        populateCourseSelect('');
-        return;
-      }
-
+      if (!raw || !raw.trim()) return;
       const name = raw.trim();
-      const existing = allCourses.find(c => c.toLowerCase() === name.toLowerCase());
-      if (existing) {
-        populateCourseSelect(existing);
+      if (allCourses.some(c => c.toLowerCase() === name.toLowerCase())) {
+        alert('That course already exists.');
         return;
       }
-
       allCourses = normalizeList([...allCourses, name]);
       saveCourses(allCourses);
-      populateCourseSelect(name);
+      cpSelectedCourse = name;
+      renderCoursePickerList(document.getElementById('cpSearch')?.value || '');
+    }
+
+    function saveCoursePickerChanges() {
+      closeCoursePicker(true);
     }
 
     function cuisineCountFor(name) {
@@ -1336,6 +2088,11 @@
       agentData.saveLocalRecipes(list);
     }
 
+    function parseJsonArray(raw) {
+      try { const v = raw ? JSON.parse(raw) : []; return Array.isArray(v) ? v : []; }
+      catch { return []; }
+    }
+
     function mapApiRecipe(row) {
       const tagsRaw = row.tagsJson ?? row.TagsJson;
       let tags = [];
@@ -1353,7 +2110,12 @@
         source: row.source ?? row.Source ?? '',
         tags,
         rating: row.rating ?? row.Rating ?? 0,
-        addedAt: Number.isFinite(addedAtMs) ? addedAtMs : Date.now()
+        addedAt: Number.isFinite(addedAtMs) ? addedAtMs : Date.now(),
+        servings: row.servings ?? row.Servings ?? null,
+        ingredients: parseJsonArray(row.ingredientsJson ?? row.IngredientsJson),
+        steps: parseJsonArray(row.stepsJson ?? row.StepsJson),
+        comments: row.comments ?? row.Comments ?? '',
+        imageUrl: row.imageUrl ?? row.ImageUrl ?? ''
       };
     }
 
@@ -1537,13 +2299,14 @@
         ? `<span class="card-source"><span class="src-icon">🔗</span>${r.source}</span>`
         : '';
 
+      const cardImgHTML = r.imageUrl
+        ? `<img src="${escAttr(r.imageUrl)}" alt="${escAttr(r.name)}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;" />`
+        : `<div class="img-placeholder"><span class="ph-icon">🍽️</span><span>No image</span></div>`;
+
       return `
-        <div class="recipe-card" onclick="">
+        <div class="recipe-card" onclick="openDetailPanel(${r.id})">
           <div class="card-image">
-            <div class="img-placeholder">
-              <span class="ph-icon">🍽️</span>
-              <span>No image</span>
-            </div>
+            ${cardImgHTML}
             <span class="card-number">${num}</span>
             <div class="card-stars">${stars(r.rating||0)}</div>
             <button class="card-menu-btn" onclick="event.stopPropagation()">•••</button>
@@ -1614,10 +2377,21 @@
     /* ─────────────────────────────────────────────
        Modal
     ───────────────────────────────────────────── */
+    function resetCourseTrigger(id, val) {
+      const trigger = document.getElementById(id);
+      if (!trigger) return;
+      trigger.dataset.value = val || '';
+      const span = trigger.querySelector('span:first-child');
+      if (span) {
+        span.className = val ? 'cp-trigger-val' : 'cp-trigger-placeholder';
+        span.textContent = val || 'Select a course...';
+      }
+    }
+
     function openModal() {
       selectedCuisines = [];
       document.getElementById('addModal').classList.add('open');
-      populateCourseSelect('');
+      resetCourseTrigger('rCourseTrigger', '');
       document.getElementById('cuisineSearch').value = '';
       renderCuisineList('');
     }
@@ -1760,7 +2534,7 @@
       const recipe = {
         id:      nextId(),
         name:    document.getElementById('rName').value.trim(),
-        course:  document.getElementById('rCourse').value || 'Uncategorized',
+        course:  document.getElementById('rCourseTrigger')?.dataset?.value || 'Uncategorized',
         cuisine: selectedCuisines.join(', '),
         source:  document.getElementById('rSource').value.trim(),
         tags:    tagRaw,
@@ -1823,11 +2597,693 @@
       recipes = apiRecipes || loadRecipes();
       saveRecipes(recipes);
       syncCourseStoreFromRecipes();
-      populateCourseSelect('');
       refreshAll();
+    }
+
+    /* ─────────────────────────────────────────────
+       Recipe Detail Panel
+    ───────────────────────────────────────────── */
+    let detailRecipeId = null;
+    let detailLocked = true;
+    let detailIngTab = 'line';
+    let ingredientRows = []; // { amount, unit, ingredient, notes }
+
+    /* ─────────────────────────────────────────────
+       Auto-find image (TheMealDB)
+    ───────────────────────────────────────────── */
+    function cleanRecipeName(name) {
+      return name
+        .replace(/\b(easy|best|quick|simple|homemade|classic|perfect|crispy|creamy|healthy|amazing|delicious|super|ultimate|my|great|favorite|slow\s*cooker|instant\s*pot|air\s*fryer|one[\s-]pan|sheet[\s-]pan|30[\s-]minute|weeknight|crowd[\s-]pleasing)\b/gi, '')
+        .replace(/\s+/g, ' ').trim();
+    }
+
+    // Primary: backend Bing Images search (no CORS, works for any recipe name)
+    async function searchBingImage(name) {
+      try {
+        const res = await fetch(`http://localhost:5169/recipes/find-image?name=${encodeURIComponent(name)}`);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.imageUrl || null;
+      } catch { return null; }
+    }
+
+    // Fallback: Wikipedia full-text search + pageimages
+    async function searchWikipediaImage(name) {
+      const cleaned = cleanRecipeName(name);
+      try {
+        const searchRes = await fetch(
+          `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleaned)}&srlimit=3&srnamespace=0&format=json&origin=*`
+        );
+        if (!searchRes.ok) return null;
+        const results = (await searchRes.json())?.query?.search;
+        if (!results?.length) return null;
+
+        for (const result of results) {
+          const imgRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(result.title)}&prop=pageimages&pithumbsize=800&piprop=original|thumbnail&format=json&origin=*`
+          );
+          if (!imgRes.ok) continue;
+          const page = Object.values((await imgRes.json())?.query?.pages || {})[0];
+          const img = page?.original?.source || page?.thumbnail?.source;
+          if (img && !/Flag_of|Coat_of_arms|_map|_logo/i.test(img)) return img;
+        }
+      } catch { /* fall through */ }
+      return null;
+    }
+
+    async function findOnlineImage(id) {
+      const r = recipes.find(x => x.id === id);
+      if (!r) return;
+
+      // Update button states to loading
+      const btns = [
+        document.getElementById('findBtn_detail')
+      ].filter(Boolean);
+      btns.forEach(b => { b.textContent = '⏳ Searching…'; b.classList.add('loading'); b.disabled = true; });
+
+      // Try Bing (via backend) first, then Wikipedia as fallback
+      const imageUrl = await searchBingImage(r.name) || await searchWikipediaImage(r.name);
+
+      if (imageUrl) {
+        r.imageUrl = imageUrl;
+        patchRecipe(id, { imageUrl });
+        applyFilters(); // re-render grid cards
+
+        // Update detail panel image box if open
+        if (detailRecipeId === id) {
+          const box = document.querySelector('#detailPanel .detail-img-box');
+          if (box) {
+            box.innerHTML = `
+              <img src="${escAttr(imageUrl)}" alt="${escAttr(r.name)}" />
+              <div class="detail-img-overlay">
+                <button class="update-photo-btn" onclick="event.stopPropagation();findOnlineImage(${id})" id="findBtn_detail">🔍 Auto-find</button>
+                <button class="update-photo-btn" onclick="event.stopPropagation();openImgPicker()">📷 Upload / URL</button>
+              </div>`;
+          }
+        }
+        btns.forEach(b => { b.textContent = '✓ Found!'; b.classList.remove('loading'); b.classList.add('found'); });
+        setTimeout(() => btns.forEach(b => { b.textContent = '🔍 Find Image'; b.classList.remove('found'); b.disabled = false; }), 2000);
+      } else {
+        btns.forEach(b => { b.textContent = '✗ Not found'; b.classList.remove('loading'); b.classList.add('failed'); b.disabled = false; });
+        setTimeout(() => btns.forEach(b => { b.textContent = '🔍 Find Image'; b.classList.remove('failed'); }), 2500);
+      }
+    }
+
+    /* ─────────────────────────────────────────────
+       Image Picker
+    ───────────────────────────────────────────── */
+    let imgPickerTab = 'upload';
+    let pendingImageUrl = '';
+
+    function openImgPicker() {
+      const r = recipes.find(x => x.id === detailRecipeId);
+      if (!r) return;
+      imgPickerTab = 'upload';
+      pendingImageUrl = '';
+      // Reset picker state
+      document.getElementById('imgFileInput').value = '';
+      document.getElementById('imgUrlInput').value = '';
+      document.getElementById('imgPreviewBox').classList.remove('visible');
+      document.getElementById('imgPreviewEl').src = '';
+      document.getElementById('ipUploadView').style.display = '';
+      document.getElementById('ipUrlView').style.display = 'none';
+      document.getElementById('ipTabUpload').classList.add('active');
+      document.getElementById('ipTabUrl').classList.remove('active');
+      // Set Bing search link
+      document.getElementById('imgBingLink').href =
+        `https://www.bing.com/images/search?q=${encodeURIComponent(r.name + ' recipe')}&form=HDRSC2`;
+      document.getElementById('imgPickerOverlay').classList.add('open');
+    }
+
+    function closeImgPicker() {
+      document.getElementById('imgPickerOverlay').classList.remove('open');
+      pendingImageUrl = '';
+    }
+
+    function switchImgPickerTab(tab) {
+      if (tab === imgPickerTab) return;
+      imgPickerTab = tab;
+      document.getElementById('ipUploadView').style.display = tab === 'upload' ? '' : 'none';
+      document.getElementById('ipUrlView').style.display  = tab === 'url'    ? 'flex' : 'none';
+      document.getElementById('ipTabUpload').classList.toggle('active', tab === 'upload');
+      document.getElementById('ipTabUrl').classList.toggle('active', tab === 'url');
+      // Reset preview
+      pendingImageUrl = '';
+      document.getElementById('imgPreviewBox').classList.remove('visible');
+      document.getElementById('imgPreviewEl').src = '';
+    }
+
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        pendingImageUrl = e.target.result;
+        showImgPreview(pendingImageUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleImgDrop(event) {
+      event.preventDefault();
+      document.getElementById('imgDropZone').classList.remove('drag-over');
+      const file = event.dataTransfer.files[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        pendingImageUrl = e.target.result;
+        showImgPreview(pendingImageUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function previewImgUrl(url) {
+      if (!url) {
+        document.getElementById('imgPreviewBox').classList.remove('visible');
+        document.getElementById('imgPreviewEl').src = '';
+        pendingImageUrl = '';
+        return;
+      }
+      pendingImageUrl = url;
+      showImgPreview(url);
+    }
+
+    function showImgPreview(src) {
+      const img = document.getElementById('imgPreviewEl');
+      const box = document.getElementById('imgPreviewBox');
+      img.onerror = () => { box.classList.remove('visible'); };
+      img.onload  = () => { box.classList.add('visible'); };
+      img.src = src;
+    }
+
+    function confirmImage() {
+      if (!pendingImageUrl) return;
+      const r = recipes.find(x => x.id === detailRecipeId);
+      if (!r) return;
+      r.imageUrl = pendingImageUrl;
+      patchRecipe(detailRecipeId, { imageUrl: pendingImageUrl });
+      closeImgPicker();
+      // Refresh image in the panel without full re-render
+      const panel = document.getElementById('detailPanel');
+      const box = panel.querySelector('.detail-img-box');
+      if (box) {
+        box.innerHTML = `
+          <img src="${escAttr(pendingImageUrl)}" alt="${escAttr(r.name)}" />
+          <div class="detail-img-overlay">
+            <button class="update-photo-btn" onclick="event.stopPropagation();findOnlineImage(${r.id})" id="findBtn_detail">🔍 Auto-find</button>
+            <button class="update-photo-btn" onclick="event.stopPropagation();openImgPicker()">📷 Upload / URL</button>
+          </div>`;
+      }
+      // Refresh the grid card too
+      applyFilters();
+    }
+
+    function parseIngredientsToRows(ingredients) {
+      return (ingredients || []).map(ing => {
+        const s = ing.trim();
+        const parts = s.split(/\s+/);
+        if (parts.length >= 3 && /^[\d½¼¾⅓⅔⅛⅜⅝⅞\/\.]+$/.test(parts[0])) {
+          return { amount: parts[0], unit: parts[1], ingredient: parts.slice(2).join(' '), notes: '' };
+        }
+        return { amount: '', unit: '', ingredient: s, notes: '' };
+      });
+    }
+
+    function collectIngRowsFromDOM() {
+      return ingredientRows.map((_, i) => ({
+        amount:     document.getElementById(`ingAmt_${i}`)?.value  || '',
+        unit:       document.getElementById(`ingUnit_${i}`)?.value || '',
+        ingredient: document.getElementById(`ingName_${i}`)?.value || '',
+        notes:      document.getElementById(`ingNotes_${i}`)?.value || ''
+      }));
+    }
+
+    function buildIngTableHTML() {
+      const rowsHTML = ingredientRows.map((row, i) => `
+        <tr class="ing-row">
+          <td style="width:18px;"><span class="ing-drag">⠿</span></td>
+          <td style="width:65px;"><input class="ing-input" id="ingAmt_${i}"  placeholder="½" value="${escAttr(row.amount)}" /></td>
+          <td style="width:80px;"><input class="ing-input" id="ingUnit_${i}" placeholder="cup" value="${escAttr(row.unit)}" /></td>
+          <td><input class="ing-input" id="ingName_${i}" placeholder="Ingredient" value="${escAttr(row.ingredient)}" /></td>
+          <td style="width:105px;"><input class="ing-input" id="ingNotes_${i}" placeholder="Notes" value="${escAttr(row.notes)}" /></td>
+          <td style="width:28px;"><button class="ing-del-btn" onclick="removeIngredientRow(${i})">🗑</button></td>
+        </tr>`).join('');
+      return `
+        <table class="ing-table">
+          <thead><tr>
+            <th></th><th>Amount</th><th>Unit</th><th>Ingredient</th><th>Notes</th><th></th>
+          </tr></thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>`;
+    }
+
+    function renderIngredientTable() {
+      const view = document.getElementById('ingLineView');
+      if (!view) return;
+      view.innerHTML = buildIngTableHTML() + `
+        <div class="ing-add-bar">
+          <button class="ing-add-btn" onclick="addIngredientRow()">+ Add Ingredient</button>
+        </div>`;
+    }
+
+    function addIngredientRow() {
+      ingredientRows = collectIngRowsFromDOM();
+      ingredientRows.push({ amount: '', unit: '', ingredient: '', notes: '' });
+      renderIngredientTable();
+      document.getElementById(`ingName_${ingredientRows.length - 1}`)?.focus();
+    }
+
+    function removeIngredientRow(i) {
+      ingredientRows = collectIngRowsFromDOM();
+      ingredientRows.splice(i, 1);
+      renderIngredientTable();
+    }
+
+    function switchIngTab(tab) {
+      if (tab === detailIngTab) return;
+      if (detailIngTab === 'line') {
+        ingredientRows = collectIngRowsFromDOM();
+        const bulkText = ingredientRows
+          .map(r => [r.amount, r.unit, r.ingredient].filter(Boolean).join(' ').trim() + (r.notes ? ` (${r.notes})` : ''))
+          .filter(Boolean).join('\n');
+        const bulkEl = document.getElementById('editIngredients');
+        if (bulkEl) bulkEl.value = bulkText;
+        document.getElementById('ingLineView').style.display = 'none';
+        document.getElementById('ingBulkView').style.display = '';
+      } else {
+        const bulkText = document.getElementById('editIngredients')?.value || '';
+        ingredientRows = parseIngredientsToRows(bulkText.split('\n').map(s => s.trim()).filter(Boolean));
+        renderIngredientTable();
+        document.getElementById('ingBulkView').style.display = 'none';
+        document.getElementById('ingLineView').style.display = '';
+      }
+      detailIngTab = tab;
+      document.getElementById('tabLine').classList.toggle('active', tab === 'line');
+      document.getElementById('tabBulk').classList.toggle('active', tab === 'bulk');
+    }
+
+    function getIngredientsForSave() {
+      if (detailIngTab === 'line') {
+        return collectIngRowsFromDOM()
+          .map(r => [r.amount, r.unit, r.ingredient].filter(Boolean).join(' ').trim() + (r.notes ? ` (${r.notes})` : ''))
+          .filter(Boolean);
+      }
+      return (document.getElementById('editIngredients')?.value || '')
+        .split('\n').map(s => s.trim()).filter(Boolean);
+    }
+
+    function cancelDetailEdit() {
+      const r = recipes.find(x => x.id === detailRecipeId);
+      if (!r) return;
+      detailLocked = true;
+      detailIngTab = 'line';
+      document.getElementById('detailPanel').classList.remove('edit-mode');
+      renderDetailPanel(r);
+    }
+
+    function openDetailPanel(id) {
+      const r = recipes.find(x => x.id === id);
+      if (!r) return;
+      detailRecipeId = id;
+      detailLocked = true;
+      renderDetailPanel(r);
+      document.getElementById('detailOverlay').classList.add('open');
+    }
+
+    function closeDetailPanel() {
+      document.getElementById('detailOverlay').classList.remove('open');
+      document.getElementById('detailPanel').classList.remove('edit-mode');
+      detailRecipeId = null;
+      detailLocked = true;
+      detailIngTab = 'line';
+    }
+
+    function detailImgBoxHTML(r) {
+      const inner = r.imageUrl
+        ? `<img src="${escAttr(r.imageUrl)}" alt="${escAttr(r.name)}" />`
+        : `<span class="ph-icon">🍽️</span><span>No image</span>`;
+      const deleteBtn = r.imageUrl
+        ? `<button class="update-photo-btn" style="border-color:rgba(239,68,68,0.4);color:#fca5a5;" onclick="event.stopPropagation();removeRecipeImage(${r.id})">🗑 Remove</button>`
+        : '';
+      return `
+        <div class="detail-img-box" onclick="openImgPicker()">
+          ${inner}
+          <div class="detail-img-overlay">
+            <button class="update-photo-btn" onclick="event.stopPropagation();findOnlineImage(${r.id})" id="findBtn_detail">🔍 Auto-find</button>
+            <button class="update-photo-btn" onclick="event.stopPropagation();openImgPicker()">📷 Upload / URL</button>
+            ${deleteBtn}
+          </div>
+        </div>`;
+    }
+
+    function removeRecipeImage(id) {
+      const r = recipes.find(x => x.id === id);
+      if (!r) return;
+      r.imageUrl = '';
+      patchRecipe(id, { imageUrl: '' });
+      applyFilters();
+      if (detailRecipeId === id) {
+        const box = document.querySelector('#detailPanel .detail-img-box');
+        if (box) box.outerHTML = detailImgBoxHTML(r);
+      }
+    }
+
+    function detailStarsHTML(rating) {
+      return Array.from({ length: 5 }, (_, i) => {
+        const lit = i < rating ? 'lit' : 'dim';
+        return `<span class="detail-star ${lit}" onclick="setDetailRating(${i + 1})">★</span>`;
+      }).join('');
+    }
+
+    function renderDetailPanel(r) {
+      const panel = document.getElementById('detailPanel');
+      const lockIcon = detailLocked ? '🔒' : '🔓';
+      const lockClass = detailLocked ? '' : 'unlocked';
+
+      const metaHTML = `
+        <div class="detail-meta-row">
+          ${r.course ? `<span class="detail-badge">📂 ${escHtml(r.course)}</span>` : ''}
+          ${r.cuisine ? `<span class="detail-badge">🌍 ${escHtml(r.cuisine)}</span>` : ''}
+          ${r.servings ? `<span class="detail-badge">🍽️ ${r.servings} servings</span>` : ''}
+          ${r.source ? `<span class="detail-badge">🔗 ${escHtml(r.source)}</span>` : ''}
+        </div>`;
+
+      const tagsHTML = (r.tags && r.tags.length)
+        ? `<div class="detail-tags-row">${r.tags.map(t => `<span class="tag"><span class="tag-icon">♦</span>${escHtml(t)}</span>`).join('')}</div>`
+        : `<span class="detail-empty">No tags</span>`;
+
+      const ingredientsHTML = (r.ingredients && r.ingredients.length)
+        ? `<ul class="detail-list">${r.ingredients.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`
+        : `<span class="detail-empty">No ingredients listed</span>`;
+
+      const stepsHTML = (r.steps && r.steps.length)
+        ? `<ol class="detail-list">${r.steps.map(s => `<li><span>${escHtml(s)}</span></li>`).join('')}</ol>`
+        : `<span class="detail-empty">No steps listed</span>`;
+
+      if (detailLocked) {
+        panel.innerHTML = `
+          <div class="detail-panel-header">
+            <button class="detail-lock-btn ${lockClass}" onclick="toggleDetailLock()" title="Edit recipe">${lockIcon}</button>
+            <div class="detail-panel-title">${escHtml(r.name)}</div>
+            <button class="detail-close-btn" onclick="closeDetailPanel()">✕</button>
+          </div>
+          <div class="detail-body">
+            <div class="detail-edit-layout">
+
+              <div class="detail-edit-left">
+                ${metaHTML}
+                <div class="detail-section">
+                  <div class="detail-label">Tags</div>
+                  ${tagsHTML}
+                </div>
+                <div class="detail-section">
+                  <div class="detail-label">Ingredients</div>
+                  ${ingredientsHTML}
+                </div>
+              </div>
+
+              <div class="detail-edit-right">
+                ${detailImgBoxHTML(r)}
+                <div class="detail-section">
+                  <div class="detail-label">Rating</div>
+                  <div class="detail-stars-row">${detailStarsHTML(r.rating || 0)}</div>
+                </div>
+                <div class="detail-section">
+                  <div class="detail-label">Directions</div>
+                  ${stepsHTML}
+                </div>
+                <div class="detail-section">
+                  <div class="detail-label">Comments / Prep Notes</div>
+                  <textarea class="detail-comments-area" id="detailComments"
+                    placeholder="Add your notes here..."
+                    onblur="saveDetailComments()">${escHtml(r.comments || '')}</textarea>
+                </div>
+              </div>
+
+            </div>
+          </div>`;
+      } else {
+        panel.classList.add('edit-mode');
+        const ingBulkText = ingredientRows
+          .map(row => [row.amount, row.unit, row.ingredient].filter(Boolean).join(' ').trim() + (row.notes ? ` (${row.notes})` : ''))
+          .filter(Boolean).join('\n');
+        const ingTableHTML = buildIngTableHTML();
+        panel.innerHTML = `
+          <div class="detail-panel-header">
+            <span class="edit-header-label">Edit Recipe</span>
+            <div style="display:flex;gap:8px;">
+              <button class="edit-save-btn" onclick="saveDetailEdits()">Save Recipe</button>
+              <button class="edit-cancel-btn" onclick="cancelDetailEdit()">Cancel</button>
+            </div>
+          </div>
+          <div class="detail-body">
+            <div class="detail-edit-layout">
+
+              <div class="detail-edit-left">
+                <div class="detail-section">
+                  <div class="detail-label">Title</div>
+                  <input class="detail-edit-input" id="editName" value="${escAttr(r.name)}" />
+                </div>
+                <div class="detail-section">
+                  <div class="detail-label">Source</div>
+                  <input class="detail-edit-input" id="editSource" value="${escAttr(r.source || '')}" />
+                </div>
+                <div style="display:flex;gap:10px;">
+                  <div class="detail-section" style="flex:1;min-width:0;">
+                    <div class="detail-label">Course</div>
+                    <button type="button" class="cp-trigger" id="editCourseTrigger" data-value="${escAttr(r.course || '')}"
+                      onclick="openCoursePicker('edit', this.dataset.value)">
+                      <span class="${r.course ? 'cp-trigger-val' : 'cp-trigger-placeholder'}">${r.course ? escHtml(r.course) : 'Select a course...'}</span>
+                      <span class="cp-trigger-arrow">▼</span>
+                    </button>
+                  </div>
+                  <div class="detail-section" style="flex:1;min-width:0;">
+                    <div class="detail-label">Cuisine</div>
+                    <input class="detail-edit-input" id="editCuisine" value="${escAttr(r.cuisine || '')}" />
+                  </div>
+                </div>
+                <div style="display:flex;gap:10px;">
+                  <div class="detail-section" style="flex:0 0 100px;">
+                    <div class="detail-label">Servings</div>
+                    <input class="detail-edit-input" id="editServings" type="number" min="1" value="${r.servings || ''}" />
+                  </div>
+                  <div class="detail-section" style="flex:1;min-width:0;">
+                    <div class="detail-label">Tags <span style="font-weight:400;text-transform:none;letter-spacing:0;color:rgba(147,197,253,0.4);font-size:0.78rem;">(comma-separated)</span></div>
+                    <input class="detail-edit-input" id="editTags" value="${escAttr((r.tags || []).join(', '))}" />
+                  </div>
+                </div>
+
+                <div class="detail-section">
+                  <div class="detail-label">Ingredients</div>
+                  <div class="ing-tab-bar">
+                    <button class="ing-tab ${detailIngTab === 'line' ? 'active' : ''}" id="tabLine" onclick="switchIngTab('line')">Line-item Input</button>
+                    <button class="ing-tab ${detailIngTab === 'bulk' ? 'active' : ''}" id="tabBulk" onclick="switchIngTab('bulk')">Bulk Input</button>
+                  </div>
+                  <div id="ingLineView" style="${detailIngTab === 'bulk' ? 'display:none' : ''}">
+                    ${ingTableHTML}
+                    <div class="ing-add-bar">
+                      <button class="ing-add-btn" onclick="addIngredientRow()">+ Add Ingredient</button>
+                    </div>
+                  </div>
+                  <div id="ingBulkView" style="${detailIngTab === 'line' ? 'display:none' : ''}">
+                    <textarea class="detail-edit-textarea" id="editIngredients" style="min-height:140px;">${escHtml(ingBulkText)}</textarea>
+                  </div>
+                </div>
+              </div>
+
+              <div class="detail-edit-right">
+                ${detailImgBoxHTML(r)}
+
+                <div class="detail-section">
+                  <div class="detail-label">Rating</div>
+                  <div class="detail-stars-row">${detailStarsHTML(r.rating || 0)}</div>
+                </div>
+
+                <div class="detail-section" style="flex:1;">
+                  <div class="detail-label">Directions</div>
+                  <textarea class="detail-edit-textarea" id="editSteps" style="min-height:200px;">${escHtml((r.steps || []).join('\n\n'))}</textarea>
+                </div>
+
+                <div class="detail-section">
+                  <div class="detail-label">Comments / Prep Notes</div>
+                  <textarea class="detail-comments-area" id="detailComments"
+                    placeholder="Add your notes here..."
+                    onblur="saveDetailComments()">${escHtml(r.comments || '')}</textarea>
+                </div>
+              </div>
+
+            </div>
+          </div>`;
+      }
+    }
+
+    function toggleDetailLock() {
+      const r = recipes.find(x => x.id === detailRecipeId);
+      if (!r) return;
+      detailLocked = !detailLocked;
+      const panel = document.getElementById('detailPanel');
+      if (!detailLocked) {
+        // Entering edit mode — initialise ingredient rows and widen panel
+        detailIngTab = 'line';
+        ingredientRows = parseIngredientsToRows(r.ingredients);
+        panel.classList.add('edit-mode');
+      } else {
+        panel.classList.remove('edit-mode');
+      }
+      renderDetailPanel(r);
+    }
+
+    function setDetailRating(n) {
+      const r = recipes.find(x => x.id === detailRecipeId);
+      if (!r) return;
+      const newRating = r.rating === n ? 0 : n; // clicking same star clears rating
+      r.rating = newRating;
+      const row = document.querySelector('.detail-stars-row');
+      if (row) row.innerHTML = detailStarsHTML(newRating);
+      patchRecipe(detailRecipeId, { rating: newRating });
+      applyFilters(); // refresh card in grid
+    }
+
+    function saveDetailComments() {
+      const el = document.getElementById('detailComments');
+      if (!el) return;
+      const value = el.value;
+      const r = recipes.find(x => x.id === detailRecipeId);
+      if (!r) return;
+      r.comments = value;
+      patchRecipe(detailRecipeId, { comments: value });
+    }
+
+    function saveDetailEdits() {
+      const r = recipes.find(x => x.id === detailRecipeId);
+      if (!r) return;
+
+      const name = document.getElementById('editName')?.value?.trim();
+      const course = document.getElementById('editCourseTrigger')?.dataset?.value || 'Uncategorized';
+      const cuisine = document.getElementById('editCuisine')?.value?.trim() || '';
+      const source = document.getElementById('editSource')?.value?.trim() || '';
+      const servingsRaw = document.getElementById('editServings')?.value;
+      const servings = servingsRaw ? parseInt(servingsRaw) || null : null;
+      const tagsRaw = document.getElementById('editTags')?.value || '';
+      const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
+      const ingredients = getIngredientsForSave();
+      const stepsRaw = document.getElementById('editSteps')?.value || '';
+      const steps = stepsRaw.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+      const comments = document.getElementById('detailComments')?.value || '';
+
+      if (!name) return;
+
+      r.name = name;
+      r.course = course;
+      r.cuisine = cuisine;
+      r.source = source;
+      r.servings = servings;
+      r.tags = tags;
+      r.ingredients = ingredients;
+      r.steps = steps;
+      r.comments = comments;
+
+      patchRecipe(detailRecipeId, { name, course, cuisine, source, servings, tags, ingredients, steps, comments });
+      detailLocked = true;
+      detailIngTab = 'line';
+      document.getElementById('detailPanel').classList.remove('edit-mode');
+      renderDetailPanel(r);
+      applyFilters(); // refresh card in grid
+    }
+
+    async function patchRecipe(id, data) {
+      try {
+        await fetch(`http://localhost:5169/recipes/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+      } catch { /* silently ignore network errors */ }
+    }
+
+    function escHtml(str) {
+      return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function escAttr(str) {
+      return String(str ?? '').replace(/&/g,'&amp;').replace(/"/g,'&quot;');
     }
 
     bootRecipes();
   </script>
+
+  <!-- ── Image Picker Modal ── -->
+  <div class="img-picker-overlay" id="imgPickerOverlay" onclick="closeImgPicker()">
+    <div class="img-picker-modal" onclick="event.stopPropagation()">
+      <div class="img-picker-header">
+        <h3>📷 Update Photo</h3>
+        <button class="detail-close-btn" onclick="closeImgPicker()">✕</button>
+      </div>
+      <div class="img-picker-body">
+        <div class="img-picker-tabs">
+          <button class="img-picker-tab active" id="ipTabUpload" onclick="switchImgPickerTab('upload')">Upload</button>
+          <button class="img-picker-tab" id="ipTabUrl" onclick="switchImgPickerTab('url')">Web URL</button>
+        </div>
+
+        <!-- Upload tab -->
+        <div id="ipUploadView">
+          <div class="img-drop-zone" id="imgDropZone"
+            onclick="document.getElementById('imgFileInput').click()"
+            ondragover="event.preventDefault();this.classList.add('drag-over')"
+            ondragleave="this.classList.remove('drag-over')"
+            ondrop="handleImgDrop(event)">
+            <span class="img-drop-icon">🖼️</span>
+            Click to browse or drag & drop an image
+          </div>
+          <input type="file" id="imgFileInput" accept="image/*" style="display:none" onchange="handleFileUpload(event)" />
+        </div>
+
+        <!-- URL tab -->
+        <div id="ipUrlView" style="display:none;flex-direction:column;gap:10px;">
+          <a id="imgBingLink" class="img-search-link" href="#" target="_blank" rel="noopener">
+            🔍 Search Bing Images for this recipe
+          </a>
+          <input class="img-url-input" id="imgUrlInput" type="url"
+            placeholder="Paste image URL here…"
+            oninput="previewImgUrl(this.value)" />
+        </div>
+
+        <!-- Preview -->
+        <div class="img-preview-box" id="imgPreviewBox">
+          <img id="imgPreviewEl" src="" alt="Preview" />
+        </div>
+      </div>
+      <div class="img-picker-footer">
+        <button class="edit-cancel-btn" onclick="closeImgPicker()">Cancel</button>
+        <button class="edit-save-btn" onclick="confirmImage()">Use This Image</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Recipe Detail Panel ── -->
+  <div class="detail-overlay" id="detailOverlay" onclick="closeDetailPanel()">
+    <div class="detail-panel" id="detailPanel" onclick="event.stopPropagation()">
+      <!-- Rendered dynamically by renderDetailPanel() -->
+    </div>
+  </div>
+
+  <!-- ── Course Picker Modal ── -->
+  <div class="cp-overlay" id="cpOverlay" onclick="if(event.target===this)closeCoursePicker(false)">
+    <div class="cp-modal">
+      <div class="cp-header">
+        <span class="cp-title">My Courses</span>
+        <button class="cp-close-x" onclick="closeCoursePicker(false)">✕</button>
+      </div>
+      <div class="cp-body">
+        <button class="cp-add-btn" onclick="addNewCourseFromPicker()">Add New Course...</button>
+        <input type="text" class="cp-search" id="cpSearch" placeholder="Search Courses..."
+          oninput="renderCoursePickerList(this.value)" />
+      </div>
+      <div class="cp-list" id="cpList"></div>
+      <div class="cp-footer">
+        <button class="cp-cancel-btn" onclick="closeCoursePicker(false)">Close</button>
+        <button class="cp-save-btn" onclick="saveCoursePickerChanges()">Save Changes</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

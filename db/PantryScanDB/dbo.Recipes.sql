@@ -11,6 +11,8 @@ CREATE TABLE [dbo].[Recipes]
     [Servings]       INT NULL,
     [IngredientsJson] NVARCHAR (MAX) NOT NULL,
     [StepsJson]      NVARCHAR (MAX) NOT NULL,
+    [Comments]       NVARCHAR (MAX) NULL,
+    [ImageUrl]       NVARCHAR (MAX) NULL,
     [CreatedAt]      DATETIME2 (7) CONSTRAINT [DF_Recipes_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
     CONSTRAINT [PK_Recipes] PRIMARY KEY CLUSTERED ([RecipeId] ASC)
 );

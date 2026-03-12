@@ -94,6 +94,8 @@ app.MapGet("/recipes", async () =>
 			Servings,
 			IngredientsJson,
 			StepsJson,
+			Comments,
+			ImageUrl,
 			CreatedAt
 		FROM dbo.Recipes
 		ORDER BY RecipeId DESC");
@@ -114,8 +116,8 @@ app.MapPost("/recipes", async (RecipeCreateDto dto) =>
 
 	using var conn = new SqlConnection(connString);
 	var id = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, IngredientsJson, StepsJson)
-		VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @IngredientsJson, @StepsJson);
+		INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, IngredientsJson, StepsJson, Comments, ImageUrl)
+		VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
 		SELECT CAST(SCOPE_IDENTITY() AS int);",
 		new
 		{
@@ -128,7 +130,9 @@ app.MapPost("/recipes", async (RecipeCreateDto dto) =>
 			AddedAt = addedAt,
 			dto.Servings,
 			IngredientsJson = JsonSerializer.Serialize(ingredients),
-			StepsJson = JsonSerializer.Serialize(steps)
+			StepsJson = JsonSerializer.Serialize(steps),
+			Comments = string.IsNullOrWhiteSpace(dto.Comments) ? null : dto.Comments.Trim(),
+			ImageUrl = string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim()
 		});
 
 	return Results.Created($"/recipes/{id}", new { recipeId = id, Name = name, dto.Servings });
@@ -164,8 +168,8 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 		await conn.ExecuteAsync(@"
 			IF NOT EXISTS (SELECT 1 FROM dbo.Recipes WHERE Name = @Name)
 			BEGIN
-				INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, IngredientsJson, StepsJson)
-				VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @IngredientsJson, @StepsJson);
+				INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, IngredientsJson, StepsJson, Comments, ImageUrl)
+				VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
 			END",
 			new
 			{
@@ -178,7 +182,9 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 				AddedAt = addedAt,
 				entry.Servings,
 				IngredientsJson = JsonSerializer.Serialize(ingredients),
-				StepsJson = JsonSerializer.Serialize(steps)
+				StepsJson = JsonSerializer.Serialize(steps),
+				Comments = string.IsNullOrWhiteSpace(entry.Comments) ? null : entry.Comments.Trim(),
+				ImageUrl = string.IsNullOrWhiteSpace(entry.ImageUrl) ? null : entry.ImageUrl.Trim()
 			}, tx);
 
 		processed++;
@@ -186,6 +192,64 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 
 	await tx.CommitAsync();
 	return Results.Ok(new { accepted = dto.Entries.Length, processed });
+});
+
+app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
+{
+	using var conn = new SqlConnection(connString);
+
+	var exists = await conn.ExecuteScalarAsync<int?>("SELECT RecipeId FROM dbo.Recipes WHERE RecipeId = @id", new { id });
+	if (exists is null) return Results.NotFound();
+
+	var setClauses = new List<string>();
+	var parameters = new DynamicParameters();
+	parameters.Add("id", id);
+
+	if (dto.Name is not null)
+	{
+		var name = dto.Name.Trim();
+		if (!string.IsNullOrWhiteSpace(name)) { setClauses.Add("Name = @Name"); parameters.Add("Name", name); }
+	}
+	if (dto.Course is not null) { setClauses.Add("Course = @Course"); parameters.Add("Course", string.IsNullOrWhiteSpace(dto.Course) ? "Uncategorized" : dto.Course.Trim()); }
+	if (dto.Cuisine is not null) { setClauses.Add("Cuisine = @Cuisine"); parameters.Add("Cuisine", string.IsNullOrWhiteSpace(dto.Cuisine) ? null : dto.Cuisine.Trim()); }
+	if (dto.Source is not null) { setClauses.Add("Source = @Source"); parameters.Add("Source", string.IsNullOrWhiteSpace(dto.Source) ? null : dto.Source.Trim()); }
+	if (dto.Tags is not null) { setClauses.Add("TagsJson = @TagsJson"); parameters.Add("TagsJson", JsonSerializer.Serialize(dto.Tags)); }
+	if (dto.Rating is not null) { setClauses.Add("Rating = @Rating"); parameters.Add("Rating", dto.Rating.Value); }
+	if (dto.Servings is not null) { setClauses.Add("Servings = @Servings"); parameters.Add("Servings", dto.Servings.Value); }
+	if (dto.Ingredients is not null) { setClauses.Add("IngredientsJson = @IngredientsJson"); parameters.Add("IngredientsJson", JsonSerializer.Serialize(dto.Ingredients)); }
+	if (dto.Steps is not null) { setClauses.Add("StepsJson = @StepsJson"); parameters.Add("StepsJson", JsonSerializer.Serialize(dto.Steps)); }
+	if (dto.Comments is not null) { setClauses.Add("Comments = @Comments"); parameters.Add("Comments", string.IsNullOrWhiteSpace(dto.Comments) ? null : dto.Comments.Trim()); }
+	if (dto.ImageUrl is not null) { setClauses.Add("ImageUrl = @ImageUrl"); parameters.Add("ImageUrl", string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim()); }
+
+	if (setClauses.Count == 0) return Results.NoContent();
+
+	await conn.ExecuteAsync($"UPDATE dbo.Recipes SET {string.Join(", ", setClauses)} WHERE RecipeId = @id", parameters);
+	return Results.NoContent();
+});
+
+app.MapGet("/recipes/find-image", async (string name) =>
+{
+	try
+	{
+		using var http = new HttpClient();
+		http.DefaultRequestHeaders.UserAgent.ParseAdd(
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+		http.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
+
+		var url = $"https://www.bing.com/images/search?q={Uri.EscapeDataString(name + " recipe")}&first=1&count=1&safeSearch=Moderate";
+		var html = await http.GetStringAsync(url);
+
+		var match = System.Text.RegularExpressions.Regex.Match(html, @"th\?id=(OIP\.[A-Za-z0-9_\-]+)");
+		if (!match.Success)
+			return Results.Ok(new { imageUrl = (string?)null });
+
+		var imageUrl = $"https://www.bing.com/th?id={match.Groups[1].Value}&pid=Api&w=600&h=400&rs=1&c=4";
+		return Results.Ok(new { imageUrl });
+	}
+	catch
+	{
+		return Results.Ok(new { imageUrl = (string?)null });
+	}
 });
 
 app.MapGet("/meal-plans", async () =>
@@ -736,8 +800,22 @@ record RecipeCreateDto(
 	long? AddedAtUnixMs,
 	int? Servings,
 	string[]? Ingredients,
-	string[]? Steps);
+	string[]? Steps,
+	string? Comments,
+	string? ImageUrl);
 record RecipeBulkCreateDto(RecipeCreateDto[] Entries);
+record RecipePatchDto(
+	string? Name,
+	string? Course,
+	string? Cuisine,
+	string? Source,
+	string[]? Tags,
+	int? Rating,
+	int? Servings,
+	string[]? Ingredients,
+	string[]? Steps,
+	string? Comments,
+	string? ImageUrl);
 record MealPlanEntryCreateDto(DateOnly PlanDate, string MealType, int? RecipeId, string? RecipeName, string? Notes);
 record MealPlanBulkCreateDto(MealPlanEntryCreateDto[] Entries);
 record MealPlanNoteUpsertDto(DateOnly PlanDate, string? Notes);
