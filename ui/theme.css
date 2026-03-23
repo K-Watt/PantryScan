@@ -1,0 +1,491 @@
+/* PantryScan Theme
+   Import this file in any page to apply the PantryScan design system.
+   Use the CSS variables below for all colors to keep the theme consistent.
+*/
+
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+:root {
+  /* Backgrounds */
+  --bg: #0f172a;
+  --bg-alt: #0f1419;
+  --panel: #111827;
+  --panel-alt: rgba(15, 20, 25, 0.8);
+
+  /* Blue accent scale */
+  --accent: #2563eb;
+  --accent-mid: #3b82f6;
+  --accent-light: #60a5fa;
+  --accent-lighter: #93c5fd;
+  --accent-2: #38bdf8;
+
+  /* Text */
+  --text: #e5e7eb;
+  --text-bright: #ffffff;
+  --muted: #9ca3af;
+
+  /* Status */
+  --success: #22c55e;
+  --success-alt: #059669;
+  --danger: #ef4444;
+  --danger-alt: #dc2626;
+  --warning: #f59e0b;
+  --info: #38bdf8;
+
+  /* Borders & surfaces */
+  --border: rgba(59, 130, 246, 0.2);
+  --border-hover: rgba(59, 130, 246, 0.5);
+  --surface: rgba(30, 64, 175, 0.15);
+  --surface-hover: rgba(59, 130, 246, 0.15);
+  --overlay: rgba(0, 0, 0, 0.5);
+
+  /* Shadows */
+  --shadow-accent: rgba(37, 99, 235, 0.3);
+  --shadow-accent-mid: rgba(59, 130, 246, 0.4);
+
+  /* Typography */
+  --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --font-mono: 'Courier New', monospace;
+
+  /* Spacing */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 15px;
+}
+
+/* ============================================================
+   BASE RESET
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font);
+  background: radial-gradient(circle at 10% 20%, #1e293b 0%, var(--bg) 40%, #0b1221 90%);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ============================================================
+   LAYOUT
+   ============================================================ */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.header {
+  background: linear-gradient(135deg, var(--accent), #1e40af);
+  padding: 30px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px var(--shadow-accent);
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.header h1 {
+  font-size: 2.5rem;
+  color: var(--text-bright);
+  margin-bottom: 10px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.header p {
+  font-size: 1.2rem;
+  color: var(--text-bright);
+  opacity: 0.9;
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+.nav-tabs {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 30px;
+  background: rgba(30, 64, 175, 0.2);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  backdrop-filter: blur(10px);
+  flex-wrap: wrap;
+}
+
+.nav-tab {
+  background: transparent;
+  color: var(--accent-lighter);
+  border: none;
+  padding: 15px 25px;
+  margin: 0 5px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+}
+
+.nav-tab:hover {
+  background: rgba(59, 130, 246, 0.3);
+  transform: translateY(-2px);
+}
+
+.nav-tab.active {
+  background: linear-gradient(135deg, var(--accent-mid), var(--accent));
+  color: var(--text-bright);
+  box-shadow: 0 4px 15px var(--shadow-accent-mid);
+}
+
+/* ============================================================
+   PANELS / CARDS
+   ============================================================ */
+.panel {
+  background: var(--panel-alt);
+  border-radius: var(--radius-lg);
+  padding: 30px;
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+}
+
+.card {
+  background: linear-gradient(135deg, rgba(30, 64, 175, 0.2), rgba(15, 20, 25, 0.3));
+  border-radius: var(--radius-md);
+  padding: 20px;
+  border: 1px solid var(--border);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 35px rgba(59, 130, 246, 0.2);
+  border-color: var(--border-hover);
+}
+
+.card h4 {
+  color: var(--accent-light);
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+}
+
+.card .details {
+  color: var(--accent-lighter);
+  margin-bottom: 15px;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(30, 64, 175, 0.3));
+  padding: 25px;
+  border-radius: var(--radius-md);
+  text-align: center;
+  border: 1px solid var(--border);
+}
+
+.stat-card h3 {
+  color: var(--accent-light);
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.stat-card p {
+  color: var(--accent-lighter);
+  font-weight: 500;
+}
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+.form-group {
+  margin-bottom: 25px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: var(--accent-lighter);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 15px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(30, 64, 175, 0.1);
+  color: var(--text-bright);
+  font-size: 1rem;
+  font-family: var(--font);
+  transition: all 0.3s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--accent-mid);
+  background: var(--surface-hover);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.form-control::placeholder {
+  color: rgba(147, 197, 253, 0.6);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn {
+  background: linear-gradient(135deg, var(--accent-mid), var(--accent));
+  color: var(--text-bright);
+  border: none;
+  padding: 15px 25px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: var(--font);
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-decoration: none;
+  display: inline-block;
+  text-align: center;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px var(--shadow-accent-mid);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--danger-alt), #b91c1c);
+}
+
+.btn-danger:hover {
+  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, var(--success-alt), #047857);
+}
+
+.btn-success:hover {
+  box-shadow: 0 8px 25px rgba(5, 150, 105, 0.4);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, #6b7280, #4b5563);
+}
+
+.btn-secondary:hover {
+  box-shadow: 0 8px 25px rgba(107, 114, 128, 0.4);
+}
+
+/* ============================================================
+   STATUS MESSAGES
+   ============================================================ */
+.status-message {
+  padding: 15px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 20px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.status-success {
+  background: rgba(5, 150, 105, 0.2);
+  border: 1px solid rgba(5, 150, 105, 0.5);
+  color: #34d399;
+}
+
+.status-error {
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.5);
+  color: #fca5a5;
+}
+
+.status-info {
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.5);
+  color: var(--accent-lighter);
+}
+
+/* ============================================================
+   SCANNER
+   ============================================================ */
+.scanner-section {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 25px;
+  margin-bottom: 25px;
+  border: 1px solid var(--border);
+}
+
+.scanner-section h3 {
+  color: var(--accent-light);
+  margin-bottom: 15px;
+  font-size: 1.3rem;
+}
+
+.camera-container {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 8px 32px var(--shadow-accent);
+}
+
+.camera-video {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.camera-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 250px;
+  height: 150px;
+  border: 3px solid var(--accent-light);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 9999px var(--overlay);
+}
+
+.camera-overlay::before {
+  content: 'Position barcode in this area';
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(96, 165, 250, 0.9);
+  color: var(--text-bright);
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.scanner-controls {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.scanner-result {
+  background: rgba(5, 150, 105, 0.1);
+  border: 1px solid rgba(5, 150, 105, 0.3);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  margin-top: 20px;
+  text-align: center;
+}
+
+.barcode-display {
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  color: var(--accent-light);
+  background: rgba(30, 64, 175, 0.2);
+  padding: 10px 15px;
+  border-radius: var(--radius-sm);
+  margin: 10px 0;
+  letter-spacing: 2px;
+}
+
+/* ============================================================
+   LOADING
+   ============================================================ */
+.loading {
+  text-align: center;
+  padding: 20px;
+  color: var(--accent-light);
+}
+
+.loading::after {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(96, 165, 250, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--accent-light);
+  animation: spin 1s linear infinite;
+  margin-left: 10px;
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-tab {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .header h1 {
+    font-size: 2rem;
+  }
+
+  .scanner-controls {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .scanner-controls .btn {
+    width: 100%;
+    max-width: 300px;
+  }
+}

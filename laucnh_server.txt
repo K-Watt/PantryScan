@@ -1,1 +1,0 @@
-Get-Process -Name "dotnet" -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500; cd "c:\Repos\PantryScan\api\PantryScan.Api"; dotnet run
