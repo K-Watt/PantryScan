@@ -489,3 +489,64 @@ body {
     max-width: 300px;
   }
 }
+
+/* ============================================================
+   TOP BAR (main site navigation)
+   ============================================================ */
+.top-bar {
+  background: linear-gradient(135deg, var(--accent), #1e40af);
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 4px 20px var(--shadow-accent-mid);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.top-bar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.top-bar .logo,
+.top-bar-brand .logo {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text-bright);
+  text-shadow: 1px 1px 4px rgba(0, 0, 0, 0.3);
+  text-decoration: none;
+}
+
+.top-bar-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.top-nav-link {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  text-decoration: none;
+}
+
+.top-nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-bright);
+}
+
+.top-nav-link.active {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--text-bright);
+  font-weight: 700;
+}
