@@ -4,38 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PantryScan – Shopping</title>
+  <link rel="stylesheet" href="ui/theme.css">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      height: 100%;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0f1419;
-      color: #fff;
-      overflow: hidden;
-    }
-
-    /* ── Top bar ── */
-    .top-bar {
-      background: linear-gradient(135deg, #2563eb, #1e40af);
-      padding: 12px 22px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      box-shadow: 0 4px 20px rgba(37,99,235,0.4);
-      position: relative;
-      z-index: 200;
-    }
-    .top-bar .logo { font-size:1.4rem; font-weight:800; color:#fff; text-decoration:none; text-shadow:1px 1px 4px rgba(0,0,0,.3); }
-    .top-bar-nav { display:flex; gap:4px; }
-    .top-nav-link {
-      background: transparent; border: none; color: rgba(255,255,255,.82);
-      padding: 7px 16px; border-radius: 8px; font-size: .93rem; font-weight: 500;
-      cursor: pointer; text-decoration: none; transition: background .18s, color .18s;
-    }
-    .top-nav-link:hover  { background: rgba(255,255,255,.12); color:#fff; }
-    .top-nav-link.active { background: rgba(255,255,255,.18); color:#fff; font-weight:700; }
-
     /* ── Shell ── */
     .app-shell { display:flex; height:calc(100vh - 49px); overflow:hidden; }
 

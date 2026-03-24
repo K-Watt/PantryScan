@@ -4,72 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PantryScan – Recipes</title>
+  <link rel="stylesheet" href="ui/theme.css">
   <style>
-    /* ── Base ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
-      color: #ffffff;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* ── Top header bar ── */
-    .top-bar {
-      background: linear-gradient(135deg, #2563eb, #1e40af);
-      padding: 14px 28px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      box-shadow: 0 4px 20px rgba(37, 99, 235, 0.4);
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-
-    .top-bar-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .top-bar-brand .logo {
-      font-size: 1.5rem;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      color: #fff;
-      text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
-    }
-
-    .top-bar-nav {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .top-nav-link {
-      background: transparent;
-      border: none;
-      color: rgba(255,255,255,0.85);
-      padding: 8px 18px;
-      border-radius: 8px;
-      font-size: 0.95rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.2s, color 0.2s;
-      text-decoration: none;
-    }
-
-    .top-nav-link:hover { background: rgba(255,255,255,0.12); color: #fff; }
-    .top-nav-link.active {
-      background: rgba(255,255,255,0.18);
-      color: #fff;
-      font-weight: 700;
-    }
-
     /* ── Below-header action bar ── */
     .action-bar {
       background: rgba(15, 20, 25, 0.9);

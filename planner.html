@@ -4,55 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PantryScan – Planner</title>
+  <link rel="stylesheet" href="ui/theme.css">
   <style>
-    /* ── Reset & base ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      height: 100%;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #0f1419;
-      color: #ffffff;
-      overflow: hidden;
-    }
-
-    /* ── Top bar ── */
-    .top-bar {
-      background: linear-gradient(135deg, #2563eb, #1e40af);
-      padding: 12px 22px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      box-shadow: 0 4px 20px rgba(37,99,235,0.4);
-      z-index: 200;
-      position: relative;
-    }
-
-    .top-bar .logo {
-      font-size: 1.4rem;
-      font-weight: 800;
-      color: #fff;
-      text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
-      text-decoration: none;
-    }
-
-    .top-bar-nav { display: flex; align-items: center; gap: 4px; }
-
-    .top-nav-link {
-      background: transparent;
-      border: none;
-      color: rgba(255,255,255,0.82);
-      padding: 7px 16px;
-      border-radius: 8px;
-      font-size: 0.93rem;
-      font-weight: 500;
-      cursor: pointer;
-      text-decoration: none;
-      transition: background 0.18s, color 0.18s;
-    }
-    .top-nav-link:hover          { background: rgba(255,255,255,0.12); color: #fff; }
-    .top-nav-link.active         { background: rgba(255,255,255,0.18); color: #fff; font-weight: 700; }
-
     /* ── App shell (everything below top-bar) ── */
     .app-shell {
       display: flex;
