@@ -15,7 +15,8 @@
       "Bash(lsof -i :5169*)",
       "Bash(pkill -f 'dotnet.*PantryScan')",
       "Bash(ls *)",
-      "Bash(cat db/PantryScanDB/*.sql)"
+      "Bash(cat db/PantryScanDB/*.sql)",
+      "Bash(dotnet test*)"
     ]
   }
 }
