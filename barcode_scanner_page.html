@@ -3,23 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Barcode Scanner - Grocery Inventory</title>
+    <title>PantryScan – Scanner</title>
     <link rel="stylesheet" href="ui/theme.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
 </head>
 <body>
+
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle navigation">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<aside class="app-sidebar" id="appSidebar">
+  <div class="sidebar-brand">
+    <a href="index.html">🥫 PantryScan</a>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="sidebar-link">
+      <span class="sidebar-link-icon">🏠</span>
+      <span class="sidebar-link-label">Pantry</span>
+    </a>
+    <a href="recipes.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📖</span>
+      <span class="sidebar-link-label">Recipes</span>
+    </a>
+    <a href="planner.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📅</span>
+      <span class="sidebar-link-label">Planner</span>
+    </a>
+    <a href="shopping.html" class="sidebar-link">
+      <span class="sidebar-link-icon">🛒</span>
+      <span class="sidebar-link-label">Shopping</span>
+    </a>
+    <a href="barcode_scanner_page.html" class="sidebar-link active">
+      <span class="sidebar-link-icon">📱</span>
+      <span class="sidebar-link-label">Scanner</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="login.html" class="sidebar-link">
+      <span class="sidebar-link-icon">👤</span>
+      <span class="sidebar-link-label">Sign In</span>
+    </a>
+  </div>
+</aside>
+
+<main class="app-main" id="appMain">
     <div class="container">
         <div class="header">
             <h1>📱 Barcode Scanner</h1>
             <p>Scan items to add them to your inventory</p>
-        </div>
-
-        <div class="nav-tabs">
-            <a href="index.html" class="nav-tab">Add Items</a>
-            <a href="barcode-scanner.html" class="nav-tab active">Barcode Scanner</a>
-            <a href="receipt-scanner.html" class="nav-tab">Receipt Scanner</a>
-            <a href="inventory.html" class="nav-tab">View Inventory</a>
-            <a href="export.html" class="nav-tab">Export Data</a>
         </div>
 
         <div id="status-message"></div>
@@ -409,4 +447,77 @@
             const recentScansDiv = document.getElementById('recentScans');
             const scansHtml = recentScans.map(scan => {
                 const date = new Date(scan.timestamp).toLocaleString();
-                
+                                return `
+                    <div class="inventory-item" style="margin-bottom: 10px;">
+                        <div class="barcode-display">${scan.barcode}</div>
+                        <p style="color:#93c5fd; font-size:0.85rem; margin-top:6px;">${date}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            recentScansDiv.innerHTML = `
+                <div class="scanner-section">
+                    <h3>📋 Recent Scans</h3>
+                    ${scansHtml}
+                    <button class="btn btn-secondary" onclick="clearRecentScans()" style="margin-top:15px;">Clear History</button>
+                </div>
+            `;
+        }
+
+        function clearRecentScans() {
+            recentScans = [];
+            localStorage.removeItem('recentScans');
+            document.getElementById('recentScans').innerHTML = '';
+        }
+
+        function showMessage(msg, type) {
+            const el = document.getElementById('status-message');
+            el.innerHTML = `<div class="status-message status-${type}">${msg}</div>`;
+            setTimeout(() => { el.innerHTML = ''; }, 4000);
+        }
+    </script>
+
+    <script>
+      (function() {
+        var sidebar = document.getElementById('appSidebar');
+        var main = document.getElementById('appMain');
+        var toggle = document.getElementById('sidebarToggle');
+        var overlay = document.getElementById('sidebarOverlay');
+        var MOBILE = 768;
+
+        function isMobile() { return window.innerWidth < MOBILE; }
+
+        function collapse() {
+          sidebar.classList.add('collapsed');
+          main.classList.add('sidebar-collapsed');
+          overlay.classList.remove('active');
+        }
+
+        function expand() {
+          sidebar.classList.remove('collapsed');
+          if (!isMobile()) main.classList.remove('sidebar-collapsed');
+          if (isMobile()) overlay.classList.add('active');
+        }
+
+        if (isMobile()) collapse();
+
+        toggle.addEventListener('click', function() {
+          if (sidebar.classList.contains('collapsed')) expand();
+          else collapse();
+        });
+
+        overlay.addEventListener('click', collapse);
+
+        window.addEventListener('resize', function() {
+          if (!isMobile()) {
+            overlay.classList.remove('active');
+            if (!sidebar.classList.contains('collapsed')) {
+              main.classList.remove('sidebar-collapsed');
+            }
+          }
+        });
+      })();
+    </script>
+</main>
+</body>
+</html>

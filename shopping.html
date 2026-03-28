@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="ui/theme.css">
   <style>
     /* ── Shell ── */
-    .app-shell { display:flex; height:calc(100vh - 49px); overflow:hidden; }
+    .app-shell { display:flex; height:100vh; overflow:hidden; }
 
     /* ════════════════ LEFT SIDEBAR ════════════════ */
     .sidebar {
@@ -313,16 +313,51 @@
 </head>
 <body>
 
-<!-- Top bar -->
-<header class="top-bar">
-  <a href="index.html" class="logo">🥫 PantryScan</a>
-  <nav class="top-bar-nav">
-    <a href="index.html"   class="top-nav-link">🏠 Inventory</a>
-    <a href="recipes.html" class="top-nav-link">📖 Recipes</a>
-    <a href="planner.html" class="top-nav-link">📅 Planner</a>
-    <a href="shopping.html" class="top-nav-link active">🛒 Shop</a>
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle navigation">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<aside class="app-sidebar" id="appSidebar">
+  <div class="sidebar-brand">
+    <a href="index.html">🥫 PantryScan</a>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="sidebar-link">
+      <span class="sidebar-link-icon">🏠</span>
+      <span class="sidebar-link-label">Pantry</span>
+    </a>
+    <a href="recipes.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📖</span>
+      <span class="sidebar-link-label">Recipes</span>
+    </a>
+    <a href="planner.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📅</span>
+      <span class="sidebar-link-label">Planner</span>
+    </a>
+    <a href="shopping.html" class="sidebar-link active">
+      <span class="sidebar-link-icon">🛒</span>
+      <span class="sidebar-link-label">Shopping</span>
+    </a>
+    <a href="barcode_scanner_page.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📱</span>
+      <span class="sidebar-link-label">Scanner</span>
+    </a>
   </nav>
-</header>
+  <div class="sidebar-footer">
+    <a href="login.html" class="sidebar-link">
+      <span class="sidebar-link-icon">👤</span>
+      <span class="sidebar-link-label">Sign In</span>
+    </a>
+  </div>
+</aside>
+
+<main class="app-main" id="appMain">
 
 <div class="app-shell">
 
@@ -921,5 +956,48 @@ window.addEventListener('storage', e => {
   if(e.key===PLAN_KEY||e.key===RECIPE_KEY){ buildPlannedMap(); renderSidebar(); renderList(); }
 });
 </script>
+
+  <script>
+    (function() {
+      var sidebar = document.getElementById('appSidebar');
+      var main = document.getElementById('appMain');
+      var toggle = document.getElementById('sidebarToggle');
+      var overlay = document.getElementById('sidebarOverlay');
+      var MOBILE = 768;
+
+      function isMobile() { return window.innerWidth < MOBILE; }
+
+      function collapse() {
+        sidebar.classList.add('collapsed');
+        main.classList.add('sidebar-collapsed');
+        overlay.classList.remove('active');
+      }
+
+      function expand() {
+        sidebar.classList.remove('collapsed');
+        if (!isMobile()) main.classList.remove('sidebar-collapsed');
+        if (isMobile()) overlay.classList.add('active');
+      }
+
+      if (isMobile()) collapse();
+
+      toggle.addEventListener('click', function() {
+        if (sidebar.classList.contains('collapsed')) expand();
+        else collapse();
+      });
+
+      overlay.addEventListener('click', collapse);
+
+      window.addEventListener('resize', function() {
+        if (!isMobile()) {
+          overlay.classList.remove('active');
+          if (!sidebar.classList.contains('collapsed')) {
+            main.classList.remove('sidebar-collapsed');
+          }
+        }
+      });
+    })();
+  </script>
+</main>
 </body>
 </html>

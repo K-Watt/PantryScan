@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pantry Inventory Manager</title>
+    <title>PantryScan – Pantry</title>
     <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
     <link rel="stylesheet" href="ui/theme.css">
     <style>
@@ -92,15 +92,52 @@
     </style>
 </head>
 <body>
-    <header class="top-bar">
-      <a href="index.html" class="logo">🥫 PantryScan</a>
-      <nav class="top-bar-nav">
-        <a href="index.html"    class="top-nav-link active">🏠 Inventory</a>
-        <a href="recipes.html"  class="top-nav-link">📖 Recipes</a>
-        <a href="planner.html"  class="top-nav-link">📅 Planner</a>
-        <a href="shopping.html" class="top-nav-link">🛒 Shop</a>
-      </nav>
-    </header>
+
+<button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle navigation">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<aside class="app-sidebar" id="appSidebar">
+  <div class="sidebar-brand">
+    <a href="index.html">🥫 PantryScan</a>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="index.html" class="sidebar-link active">
+      <span class="sidebar-link-icon">🏠</span>
+      <span class="sidebar-link-label">Pantry</span>
+    </a>
+    <a href="recipes.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📖</span>
+      <span class="sidebar-link-label">Recipes</span>
+    </a>
+    <a href="planner.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📅</span>
+      <span class="sidebar-link-label">Planner</span>
+    </a>
+    <a href="shopping.html" class="sidebar-link">
+      <span class="sidebar-link-icon">🛒</span>
+      <span class="sidebar-link-label">Shopping</span>
+    </a>
+    <a href="barcode_scanner_page.html" class="sidebar-link">
+      <span class="sidebar-link-icon">📱</span>
+      <span class="sidebar-link-label">Scanner</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <a href="login.html" class="sidebar-link">
+      <span class="sidebar-link-icon">👤</span>
+      <span class="sidebar-link-label">Sign In</span>
+    </a>
+  </div>
+</aside>
+
+<main class="app-main" id="appMain">
     <div class="container">
         <div class="header">
             <h1>🛒 Grocery Inventory Manager</h1>
@@ -552,4 +589,128 @@
                     <div class="inventory-item ${isLowStock ? 'low-stock' : ''}">
                         <h4>${item.name}</h4>
                         <div class="details">
-                            <p><strong
+                            <p><strong>Category:</strong> ${item.category}</p>
+                            <p><strong>Quantity:</strong> ${item.quantity} ${item.unit}</p>
+                            ${item.expiryDate ? `<p><strong>Expires:</strong> ${new Date(item.expiryDate).toLocaleDateString()} ${expiryWarning ? '⚠️' : ''}</p>` : ''}
+                            ${item.price ? `<p><strong>Price:</strong> $${item.price.toFixed(2)}</p>` : ''}
+                            ${item.barcode ? `<p><strong>Barcode:</strong> ${item.barcode}</p>` : ''}
+                        </div>
+                        <div class="actions">
+                            <button class="btn btn-danger" onclick="removeItem(${item.id})">Remove</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            inventoryList.innerHTML = itemsHtml;
+        }
+
+        function filterInventory() {
+            const query = document.getElementById('searchInventory').value.toLowerCase();
+            const filtered = groceryData.filter(item =>
+                item.name.toLowerCase().includes(query) ||
+                item.category.toLowerCase().includes(query)
+            );
+            const inventoryList = document.getElementById('inventoryList');
+            if (filtered.length === 0) {
+                inventoryList.innerHTML = `<div style="text-align:center;padding:20px;color:#93c5fd;">No items match your search.</div>`;
+                return;
+            }
+            inventoryList.innerHTML = filtered.map(item => `
+                <div class="inventory-item">
+                    <h4>${item.name}</h4>
+                    <div class="details">
+                        <p><strong>Category:</strong> ${item.category}</p>
+                        <p><strong>Quantity:</strong> ${item.quantity} ${item.unit}</p>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-danger" onclick="removeItem(${item.id})">Remove</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function removeItem(id) {
+            groceryData = groceryData.filter(item => item.id !== id);
+            saveData();
+            updateStats();
+            displayInventory();
+            showMessage('Item removed.', 'success');
+        }
+
+        function updateStats() {
+            document.getElementById('totalItems').textContent = groceryData.length;
+            document.getElementById('lowStockItems').textContent = groceryData.filter(i => i.quantity <= 2).length;
+            const cats = new Set(groceryData.map(i => i.category));
+            document.getElementById('categoriesCount').textContent = cats.size;
+        }
+
+        function saveData() {
+            localStorage.setItem('groceryInventory', JSON.stringify(groceryData));
+        }
+
+        function showMessage(msg, type) {
+            const el = document.getElementById('status-message');
+            el.innerHTML = `<div class="status-message status-${type}">${msg}</div>`;
+            setTimeout(() => { el.innerHTML = ''; }, 4000);
+        }
+
+        function exportData(format) {
+            if (format === 'json') {
+                const blob = new Blob([JSON.stringify(groceryData, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory.json'; a.click();
+            } else if (format === 'csv') {
+                const header = 'id,name,category,quantity,unit,expiryDate,price,barcode,dateAdded\n';
+                const rows = groceryData.map(i => `${i.id},"${i.name}","${i.category}",${i.quantity},"${i.unit}","${i.expiryDate||''}",${i.price},"${i.barcode||''}","${i.dateAdded}"`).join('\n');
+                const blob = new Blob([header + rows], { type: 'text/csv' });
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'inventory.csv'; a.click();
+            } else {
+                showMessage('Excel export requires a library. Use JSON or CSV for now.', 'info');
+            }
+        }
+    </script>
+
+  <script>
+    (function() {
+      var sidebar = document.getElementById('appSidebar');
+      var main = document.getElementById('appMain');
+      var toggle = document.getElementById('sidebarToggle');
+      var overlay = document.getElementById('sidebarOverlay');
+      var MOBILE = 768;
+
+      function isMobile() { return window.innerWidth < MOBILE; }
+
+      function collapse() {
+        sidebar.classList.add('collapsed');
+        main.classList.add('sidebar-collapsed');
+        overlay.classList.remove('active');
+      }
+
+      function expand() {
+        sidebar.classList.remove('collapsed');
+        if (!isMobile()) main.classList.remove('sidebar-collapsed');
+        if (isMobile()) overlay.classList.add('active');
+      }
+
+      if (isMobile()) collapse();
+
+      toggle.addEventListener('click', function() {
+        if (sidebar.classList.contains('collapsed')) expand();
+        else collapse();
+      });
+
+      overlay.addEventListener('click', collapse);
+
+      window.addEventListener('resize', function() {
+        if (!isMobile()) {
+          overlay.classList.remove('active');
+          if (!sidebar.classList.contains('collapsed')) {
+            main.classList.remove('sidebar-collapsed');
+          }
+        }
+      });
+    })();
+  </script>
+</main>
+</body>
+</html>
