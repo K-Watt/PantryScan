@@ -5,7 +5,7 @@ using System.Text.Json;
 var builder = WebApplication.CreateBuilder(args);
 
 var connString = builder.Configuration.GetConnectionString("Sql")
-	?? "Server=localhost;Database=PantryScanDB;Trusted_Connection=True;TrustServerCertificate=True;";
+	?? "Server=localhost,1433;Database=PantryScanDB;User Id=sa;Password=PantryScanP@ss1;TrustServerCertificate=True;";
 
 builder.Services.AddCors(opt =>
 {
@@ -29,6 +29,7 @@ app.Use(async (ctx, next) =>
 
 app.UseCors();
 
+await EnsureDatabaseAsync(connString);
 await EnsureSchemaAsync(connString);
 
 app.MapGet("/", () => "PantryScan API running");
@@ -75,6 +76,91 @@ app.MapGet("/agent/context", async () =>
 		},
 		capabilities = new { inventory = true, recipes = true, mealPlans = true, shopping = true },
 		storage = new { planner = "sql", recipes = "sql", shopping = "sql" }
+	});
+});
+
+app.MapGet("/agent/schema", () =>
+{
+	return Results.Ok(new
+	{
+		version = "1.0",
+		entities = new[]
+		{
+			new
+			{
+				name = "PantryItem",
+				endpoint = "/items",
+				fields = new[]
+				{
+					new { name = "itemId", type = "int", required = false, note = "Auto-assigned" },
+					new { name = "name", type = "string", required = true, note = "Trimmed, max 200 chars" },
+					new { name = "quantity", type = "int", required = true, note = "Must be >= 0; 0 = out of stock" }
+				},
+				safeOperations = new[] { "GET /items" },
+				destructiveOperations = new[] { "DELETE /items/{id}" }
+			},
+			new
+			{
+				name = "Recipe",
+				endpoint = "/recipes",
+				fields = new[]
+				{
+					new { name = "recipeId", type = "int", required = false, note = "Auto-assigned" },
+					new { name = "name", type = "string", required = true, note = "" },
+					new { name = "course", type = "string", required = false, note = "Breakfast|Lunch|Dinner|Snack|Dessert|Side|Drink" },
+					new { name = "cuisine", type = "string", required = false, note = "Free text" },
+					new { name = "tags", type = "string[]", required = false, note = "Free-form array" },
+					new { name = "rating", type = "int", required = false, note = "0-5; 0=unrated" },
+					new { name = "servings", type = "int", required = false, note = "" },
+					new { name = "ingredients", type = "string[]", required = false, note = "" },
+					new { name = "steps", type = "string[]", required = false, note = "Ordered instructions" }
+				},
+				safeOperations = new[] { "GET /recipes" },
+				destructiveOperations = new[] { "DELETE /recipes/{id}" }
+			},
+			new
+			{
+				name = "MealPlanEntry",
+				endpoint = "/meal-plans",
+				fields = new[]
+				{
+					new { name = "planDate", type = "date", required = true, note = "YYYY-MM-DD" },
+					new { name = "mealType", type = "string", required = true, note = "Breakfast|Lunch|Dinner|Snack|Notes" },
+					new { name = "recipeId", type = "int?", required = false, note = "Links to Recipe" },
+					new { name = "recipeName", type = "string", required = true, note = "Required unless mealType=Notes" },
+					new { name = "notes", type = "string", required = false, note = "Required if mealType=Notes" }
+				},
+				safeOperations = new[] { "GET /meal-plans", "POST /meal-plans (upsert)" },
+				destructiveOperations = new[] { "DELETE /meal-plans" }
+			},
+			new
+			{
+				name = "ShoppingItem",
+				endpoint = "/shopping",
+				fields = new[]
+				{
+					new { name = "clientId", type = "string", required = true, note = "Client-provided unique ID (UUID recommended)" },
+					new { name = "name", type = "string", required = true, note = "" },
+					new { name = "qty", type = "string", required = false, note = "Free text e.g. '2 lbs'" },
+					new { name = "category", type = "string", required = false, note = "Produce|Dairy|Meat|Pantry|Frozen|etc." },
+					new { name = "isChecked", type = "bool", required = false, note = "True = purchased/in cart" }
+				},
+				safeOperations = new[] { "GET /shopping", "POST /shopping/items" },
+				destructiveOperations = new[] { "DELETE /shopping/items/{clientId}", "DELETE /shopping/checked" }
+			}
+		},
+		allowedValues = new
+		{
+			mealType = new[] { "Breakfast", "Lunch", "Dinner", "Snack", "Notes" },
+			course = new[] { "Breakfast", "Lunch", "Dinner", "Snack", "Dessert", "Side", "Drink", "Uncategorized" },
+			shoppingCategory = new[] { "Produce", "Dairy", "Meat", "Seafood", "Bakery", "Frozen", "Pantry", "Beverages", "Snacks", "Household", "Personal Care", "Other" }
+		},
+		writeEnvelope = new
+		{
+			note = "Write endpoints accept optional idempotencyKey and audit fields",
+			idempotencyKey = "string (UUID) — prevents duplicate writes on retry",
+			audit = new { actionId = "string", actor = "string", source = "string", requestedAtUtc = "ISO 8601 datetime" }
+		}
 	});
 });
 
@@ -425,12 +511,32 @@ app.MapPut("/meal-plans/note", async (MealPlanNoteUpsertDto dto) =>
 	return Results.NoContent();
 });
 
+static async Task EnsureDatabaseAsync(string connString)
+{
+	var masterConn = new SqlConnectionStringBuilder(connString) { InitialCatalog = "master" }.ConnectionString;
+	using var conn = new SqlConnection(masterConn);
+	await conn.OpenAsync();
+	await conn.ExecuteAsync("IF DB_ID('PantryScanDB') IS NULL CREATE DATABASE PantryScanDB;");
+}
+
 static async Task EnsureSchemaAsync(string connString)
 {
 	using var conn = new SqlConnection(connString);
 	await conn.OpenAsync();
 
 	await conn.ExecuteAsync(@"
+		IF OBJECT_ID('dbo.Items', 'U') IS NULL
+		BEGIN
+			CREATE TABLE [dbo].[Items]
+			(
+				[ItemId] INT IDENTITY (1, 1) NOT NULL,
+				[Name] NVARCHAR (200) NOT NULL,
+				[Quantity] INT CONSTRAINT [DF_Items_Quantity] DEFAULT (0) NOT NULL,
+				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_Items_CreatedAt] DEFAULT (SYSDATETIME()) NOT NULL,
+				CONSTRAINT [PK_Items] PRIMARY KEY CLUSTERED ([ItemId] ASC)
+			);
+		END;
+
 		IF OBJECT_ID('dbo.Recipes', 'U') IS NULL
 		BEGIN
 			CREATE TABLE [dbo].[Recipes]
@@ -490,6 +596,36 @@ static async Task EnsureSchemaAsync(string connString)
 				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_ShoppingItems_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
 				CONSTRAINT [PK_ShoppingItems] PRIMARY KEY CLUSTERED ([ShoppingItemId] ASC),
 				CONSTRAINT [UQ_ShoppingItems_ClientId] UNIQUE ([ClientId])
+			);
+		END;
+
+		IF OBJECT_ID('dbo.Users', 'U') IS NULL
+		BEGIN
+			CREATE TABLE [dbo].[Users]
+			(
+				[UserId] INT IDENTITY (1, 1) NOT NULL,
+				[DisplayName] NVARCHAR (100) NOT NULL,
+				[Email] NVARCHAR (200) NOT NULL,
+				[PasswordHash] NVARCHAR (200) NOT NULL,
+				[Role] NVARCHAR (20) CONSTRAINT [DF_Users_Role] DEFAULT ('member') NOT NULL,
+				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_Users_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
+				CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED ([UserId] ASC),
+				CONSTRAINT [UQ_Users_Email] UNIQUE ([Email])
+			);
+		END;
+
+		IF OBJECT_ID('dbo.UserSessions', 'U') IS NULL
+		BEGIN
+			CREATE TABLE [dbo].[UserSessions]
+			(
+				[SessionId] INT IDENTITY (1, 1) NOT NULL,
+				[SessionToken] NVARCHAR (64) NOT NULL,
+				[UserId] INT NOT NULL,
+				[ExpiresAt] DATETIME2 (7) NOT NULL,
+				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_UserSessions_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
+				CONSTRAINT [PK_UserSessions] PRIMARY KEY CLUSTERED ([SessionId] ASC),
+				CONSTRAINT [UQ_UserSessions_Token] UNIQUE ([SessionToken]),
+				CONSTRAINT [FK_UserSessions_Users] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([UserId])
 			);
 		END;
 	");
@@ -725,6 +861,86 @@ app.MapPost("/shopping/bulk", async (ShoppingBulkDto dto) =>
 	return Results.Ok(new { accepted = dto.Items.Length, processed });
 });
 
+// ── Auth endpoints ──────────────────────────────────────────────────────────
+
+app.MapPost("/auth/register", async (AuthRegisterDto dto) =>
+{
+	if (string.IsNullOrWhiteSpace(dto.DisplayName)) return Results.BadRequest(new { error = "DisplayName is required." });
+	if (string.IsNullOrWhiteSpace(dto.Email)) return Results.BadRequest(new { error = "Email is required." });
+	if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6) return Results.BadRequest(new { error = "Password must be at least 6 characters." });
+
+	using var conn = new SqlConnection(connString);
+	await conn.OpenAsync();
+
+	var existing = await conn.ExecuteScalarAsync<int?>("SELECT UserId FROM dbo.Users WHERE Email = @Email", new { Email = dto.Email.Trim().ToLowerInvariant() });
+	if (existing.HasValue) return Results.Conflict(new { error = "An account with that email already exists." });
+
+	// Determine role: first user becomes owner
+	var userCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Users");
+	var role = userCount == 0 ? "owner" : "member";
+
+	var hash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+	var userId = await conn.ExecuteScalarAsync<int>(@"
+		INSERT INTO dbo.Users (DisplayName, Email, PasswordHash, Role)
+		VALUES (@DisplayName, @Email, @PasswordHash, @Role);
+		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		new { DisplayName = dto.DisplayName.Trim(), Email = dto.Email.Trim().ToLowerInvariant(), PasswordHash = hash, Role = role });
+
+	return Results.Created($"/auth/me", new { userId, displayName = dto.DisplayName.Trim(), role });
+});
+
+app.MapPost("/auth/login", async (AuthLoginDto dto) =>
+{
+	if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
+		return Results.BadRequest(new { error = "Email and password are required." });
+
+	using var conn = new SqlConnection(connString);
+	var user = await conn.QueryFirstOrDefaultAsync<UserRow>(
+		"SELECT UserId, DisplayName, Email, PasswordHash, Role FROM dbo.Users WHERE Email = @Email",
+		new { Email = dto.Email.Trim().ToLowerInvariant() });
+
+	if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+		return Results.Unauthorized();
+
+	var token = Guid.NewGuid().ToString("N");
+	var expires = DateTime.UtcNow.AddDays(30);
+	await conn.ExecuteAsync(@"
+		INSERT INTO dbo.UserSessions (SessionToken, UserId, ExpiresAt)
+		VALUES (@Token, @UserId, @ExpiresAt);",
+		new { Token = token, UserId = user.UserId, ExpiresAt = expires });
+
+	return Results.Ok(new { sessionToken = token, userId = user.UserId, displayName = user.DisplayName, role = user.Role, expiresAt = expires });
+});
+
+app.MapPost("/auth/logout", async (HttpContext ctx) =>
+{
+	var token = ctx.Request.Headers["X-Session-Token"].FirstOrDefault();
+	if (string.IsNullOrWhiteSpace(token)) return Results.NoContent();
+
+	using var conn = new SqlConnection(connString);
+	await conn.ExecuteAsync("DELETE FROM dbo.UserSessions WHERE SessionToken = @Token", new { Token = token });
+	return Results.NoContent();
+});
+
+app.MapGet("/auth/me", async (HttpContext ctx) =>
+{
+	var token = ctx.Request.Headers["X-Session-Token"].FirstOrDefault();
+	if (string.IsNullOrWhiteSpace(token)) return Results.Unauthorized();
+
+	using var conn = new SqlConnection(connString);
+	var session = await conn.QueryFirstOrDefaultAsync<SessionWithUser>(@"
+		SELECT u.UserId, u.DisplayName, u.Email, u.Role, s.ExpiresAt
+		FROM dbo.UserSessions s
+		JOIN dbo.Users u ON u.UserId = s.UserId
+		WHERE s.SessionToken = @Token AND s.ExpiresAt > SYSUTCDATETIME()",
+		new { Token = token });
+
+	if (session is null) return Results.Unauthorized();
+	return Results.Ok(new { session.UserId, session.DisplayName, session.Email, session.Role });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+
 app.Run();
 
 static JsonElement? FindRecipeNode(JsonElement root)
@@ -825,3 +1041,7 @@ record ShoppingCheckDto(bool Checked);
 record ShoppingBulkItemDto(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string[]? Recipes, bool Checked);
 record ShoppingBulkDto(ShoppingBulkItemDto[] Items);
 record RecipeImportDto(string Url);
+record AuthRegisterDto(string DisplayName, string Email, string Password);
+record AuthLoginDto(string Email, string Password);
+record UserRow(int UserId, string DisplayName, string Email, string PasswordHash, string Role);
+record SessionWithUser(int UserId, string DisplayName, string Email, string Role, DateTime ExpiresAt);

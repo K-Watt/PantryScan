@@ -1,19 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(powershell -Command \"Get-Service -Name ''MSSQLSERVER'' -ErrorAction SilentlyContinue | Select-Object Name, Status\")",
-      "Bash(dotnet run)",
-      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 5169 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalPort, State\")",
-      "Bash(powershell -Command \"Get-Process -Name ''dotnet'' -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 500; Write-Output ''stopped''\")",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5169/recipes)",
-      "Bash(curl -s http://localhost:5169/recipes)",
-      "Bash(python3 -c \"import json,sys; data=json.load\\(sys.stdin\\); r=data[0]; print\\(''Fields:'', list\\(r.keys\\(\\)\\)\\)\")",
-      "Bash(curl -s \"https://www.themealdb.com/api/json/v1/1/search.php?s=chicken+tikka\")",
-      "Bash(curl -s \"https://www.themealdb.com/api/json/v1/1/search.php?s=Chicken+Tikka+Masala\")",
-      "Bash(curl -s \"https://en.wikipedia.org/api/rest_v1/page/summary/Jalape%C3%B1o_popper\")",
-      "Bash(curl -s \"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=bacon+wrapped+jalapeno+poppers&srlimit=1&format=json&origin=*\")",
-      "Bash(curl -s \"https://www.themealdb.com/api/json/v1/1/search.php?s=Spicy+Arrabiata+Penne\")",
-      "Bash(curl -s \"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=marry+me+chicken&srlimit=1&format=json&origin=*\")"
+      "Bash(dotnet run --project api/PantryScan.Api/PantryScan.Api.csproj)",
+      "Bash(dotnet build api/PantryScan.Api/PantryScan.Api.csproj*)",
+      "Bash(dotnet run*)",
+      "Bash(curl http://localhost:5169*)",
+      "Bash(curl -s http://localhost:5169*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5169*)",
+      "Bash(curl -s -X POST http://localhost:5169*)",
+      "Bash(curl -s -X DELETE http://localhost:5169*)",
+      "Bash(curl -s \"https://www.themealdb.com/api/json/v1/1/search.php?s=*\")",
+      "Bash(curl -s \"https://en.wikipedia.org/*\")",
+      "Bash(curl -s https://world.openfoodfacts.org/api/v0/product/*)",
+      "Bash(lsof -i :5169*)",
+      "Bash(pkill -f 'dotnet.*PantryScan')",
+      "Bash(ls *)",
+      "Bash(cat db/PantryScanDB/*.sql)"
     ]
   }
 }

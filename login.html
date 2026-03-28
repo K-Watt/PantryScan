@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PantryScan — Sign In</title>
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  <link rel="stylesheet" href="ui/styles.css" />
+  <style>
+    body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--bg, #f5f5f5); }
+    .auth-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.1);
+      padding: 2rem;
+      width: 100%;
+      max-width: 380px;
+    }
+    .auth-card h1 { margin: 0 0 1.5rem; font-size: 1.5rem; text-align: center; }
+    .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #eee; }
+    .tabs button {
+      flex: 1; background: none; border: none; padding: .6rem;
+      font-size: 1rem; cursor: pointer; color: #888; border-bottom: 2px solid transparent; margin-bottom: -2px;
+    }
+    .tabs button.active { color: #2d6a4f; border-bottom-color: #2d6a4f; font-weight: 600; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; margin-bottom: .3rem; font-size: .9rem; color: #555; }
+    .form-group input {
+      width: 100%; padding: .6rem .8rem; border: 1px solid #ddd;
+      border-radius: 6px; font-size: 1rem; box-sizing: border-box;
+    }
+    .form-group input:focus { outline: none; border-color: #2d6a4f; }
+    .btn-primary {
+      width: 100%; padding: .75rem; background: #2d6a4f; color: white;
+      border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; margin-top: .5rem;
+    }
+    .btn-primary:hover { background: #1f4d39; }
+    .error-msg { color: #c0392b; font-size: .85rem; margin-top: .5rem; display: none; }
+    .success-msg { color: #27ae60; font-size: .85rem; margin-top: .5rem; display: none; }
+    #register-section { display: none; }
+  </style>
+</head>
+<body>
+<div class="auth-card">
+  <h1>🥗 PantryScan</h1>
+
+  <div class="tabs">
+    <button class="active" id="tab-login" onclick="showTab('login')">Sign In</button>
+    <button id="tab-register" onclick="showTab('register')">Create Account</button>
+  </div>
+
+  <!-- Login -->
+  <div id="login-section">
+    <div class="form-group">
+      <label for="login-email">Email</label>
+      <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="form-group">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="••••••" autocomplete="current-password" />
+    </div>
+    <div class="error-msg" id="login-error"></div>
+    <button class="btn-primary" onclick="login()">Sign In</button>
+  </div>
+
+  <!-- Register -->
+  <div id="register-section">
+    <div class="form-group">
+      <label for="reg-name">Your Name</label>
+      <input type="text" id="reg-name" placeholder="First name or nickname" autocomplete="name" />
+    </div>
+    <div class="form-group">
+      <label for="reg-email">Email</label>
+      <input type="email" id="reg-email" placeholder="you@example.com" autocomplete="email" />
+    </div>
+    <div class="form-group">
+      <label for="reg-password">Password</label>
+      <input type="password" id="reg-password" placeholder="Min 6 characters" autocomplete="new-password" />
+    </div>
+    <div class="error-msg" id="reg-error"></div>
+    <div class="success-msg" id="reg-success"></div>
+    <button class="btn-primary" onclick="register()">Create Account</button>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:5169';
+
+  function showTab(tab) {
+    document.getElementById('login-section').style.display = tab === 'login' ? '' : 'none';
+    document.getElementById('register-section').style.display = tab === 'register' ? '' : 'none';
+    document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+  }
+
+  async function login() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errEl = document.getElementById('login-error');
+    errEl.style.display = 'none';
+
+    if (!email || !password) { showError(errEl, 'Email and password are required.'); return; }
+
+    try {
+      const res = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      if (res.status === 401) { showError(errEl, 'Incorrect email or password.'); return; }
+      if (!res.ok) { const d = await res.json(); showError(errEl, d.error || 'Login failed.'); return; }
+
+      const data = await res.json();
+      localStorage.setItem('pantryscan_session', data.sessionToken);
+      localStorage.setItem('pantryscan_user', JSON.stringify({ userId: data.userId, displayName: data.displayName, role: data.role }));
+      window.location.href = 'index.html';
+    } catch {
+      showError(errEl, 'Could not connect to API. Is it running?');
+    }
+  }
+
+  async function register() {
+    const displayName = document.getElementById('reg-name').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const errEl = document.getElementById('reg-error');
+    const successEl = document.getElementById('reg-success');
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    if (!displayName || !email || !password) { showError(errEl, 'All fields are required.'); return; }
+
+    try {
+      const res = await fetch(`${API}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ displayName, email, password })
+      });
+
+      if (res.status === 409) { showError(errEl, 'An account with that email already exists.'); return; }
+      if (!res.ok) { const d = await res.json(); showError(errEl, d.error || 'Registration failed.'); return; }
+
+      successEl.textContent = 'Account created! Signing you in...';
+      successEl.style.display = 'block';
+
+      // Auto-login after register
+      document.getElementById('login-email').value = email;
+      document.getElementById('login-password').value = password;
+      setTimeout(() => { showTab('login'); login(); }, 800);
+    } catch {
+      showError(errEl, 'Could not connect to API. Is it running?');
+    }
+  }
+
+  function showError(el, msg) {
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  // If already logged in, redirect
+  if (localStorage.getItem('pantryscan_session')) {
+    window.location.href = 'index.html';
+  }
+
+  // Enter key support
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      if (document.getElementById('login-section').style.display !== 'none') login();
+      else register();
+    }
+  });
+</script>
+</body>
+</html>
