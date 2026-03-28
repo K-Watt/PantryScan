@@ -19,8 +19,15 @@ This document describes current architecture and migration status to prepare Pan
 1. **Phase 1 (done)**: Add SQL tables and endpoints for planner/recipes.
 2. **Phase 2 (done)**: Migrate local planner/recipes on page boot using bulk endpoints.
 3. **Phase 3 (done)**: Introduce shared `agent-data-service.js` adapter used by planner/recipes and shopping local helpers.
-4. **Phase 4 (next)**: Move shopping to API-backed storage and expose agent-safe shopping contracts.
-5. **Phase 5 (next)**: Add explicit idempotency/audit handling and policy enforcement at API level.
+4. **Phase 4 (done)**: Move shopping to API-backed storage and expose agent-safe shopping contracts.
+5. **Phase 5 (done)**: Add explicit idempotency/audit handling and policy enforcement at API level.
+   - Added `dbo.AuditLog` table (auto-created on startup).
+   - All write endpoints accept optional `idempotencyKey` and `audit` fields.
+   - Duplicate write detection: returns `{ idempotent: true }` on repeated keys.
+   - Every write records an audit row with method, endpoint, actor, outcome, and timestamp.
+   - `GET /agent/context` now includes `auditLog: { total, last24h }` summary.
+   - Added missing `PUT /items/{id}` and `DELETE /items/{id}` endpoints.
+   - Added missing `DELETE /recipes/{id}` endpoint.
 
 ## Frontend Adapter
 `agent-data-service.js` now provides:
@@ -37,7 +44,6 @@ This keeps page UX unchanged while centralizing data-access seams for future age
 - Data migration is additive and retriable; local data remains as fallback cache.
 
 ## Remaining Before Real Agent Runtime
-- Define and enforce idempotency headers/keys in API handlers.
-- Persist operation audit records (action id, actor, timestamp, outcome).
-- Add shopping API + migration.
 - Add confirmation policy for destructive actions.
+- Phase 6: Calendar + Todos.
+- Phase 7: Hooks + automations.

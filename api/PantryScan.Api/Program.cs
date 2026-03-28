@@ -43,16 +43,69 @@ app.MapGet("/items", async () =>
 
 app.MapPost("/items", async (ItemDto dto) =>
 {
-	if (string.IsNullOrWhiteSpace(dto.Name)) return Results.BadRequest(new { error = "Name is required." });
-	if (dto.Quantity < 0) return Results.BadRequest(new { error = "Quantity cannot be negative." });
-
 	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (string.IsNullOrWhiteSpace(dto.Name))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/items", null, 400, "error");
+		return Results.BadRequest(new { error = "Name is required." });
+	}
+	if (dto.Quantity < 0)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/items", null, 400, "error");
+		return Results.BadRequest(new { error = "Quantity cannot be negative." });
+	}
+
 	var id = await conn.ExecuteScalarAsync<int>(@"
 		INSERT INTO dbo.Items(Name, Quantity) VALUES (@Name, @Quantity);
 		SELECT CAST(SCOPE_IDENTITY() AS int);",
 		new { Name = dto.Name.Trim(), dto.Quantity });
 
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/items", JsonSerializer.Serialize(new { dto.Name, dto.Quantity }), 201, "success");
 	return Results.Created($"/items/{id}", new { ItemId = id, Name = dto.Name.Trim(), dto.Quantity });
+});
+
+app.MapPut("/items/{id:int}", async (int id, ItemUpdateDto dto) =>
+{
+	if (dto.Quantity < 0) return Results.BadRequest(new { error = "Quantity cannot be negative." });
+
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	var exists = await conn.ExecuteScalarAsync<int?>("SELECT ItemId FROM dbo.Items WHERE ItemId = @id", new { id });
+	if (exists is null)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/items/{id}", null, 404, "error");
+		return Results.NotFound(new { error = "Item not found." });
+	}
+
+	await conn.ExecuteAsync("UPDATE dbo.Items SET Quantity = @Quantity WHERE ItemId = @id", new { dto.Quantity, id });
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/items/{id}", JsonSerializer.Serialize(new { dto.Quantity }), 204, "success");
+	return Results.NoContent();
+});
+
+app.MapDelete("/items/{id:int}", async (int id, string? idempotencyKey) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, idempotencyKey);
+	if (idem is not null) return idem;
+
+	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.Items WHERE ItemId = @id", new { id });
+	if (deleted == 0)
+	{
+		if (!string.IsNullOrWhiteSpace(idempotencyKey))
+			await LogAudit(conn, idempotencyKey, null, "DELETE", $"/items/{id}", null, 404, "error");
+		return Results.NotFound(new { error = "Item not found." });
+	}
+
+	await LogAudit(conn, idempotencyKey, null, "DELETE", $"/items/{id}", null, 204, "success");
+	return Results.NoContent();
 });
 
 app.MapGet("/agent/context", async () =>
@@ -64,6 +117,11 @@ app.MapGet("/agent/context", async () =>
 	var recipesCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Recipes;");
 	var mealPlansCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.MealPlanEntries;");
 	var shoppingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.ShoppingItems;");
+	var auditRow = await conn.QueryFirstOrDefaultAsync(@"
+		SELECT
+			COUNT(*) AS total,
+			SUM(CASE WHEN CreatedAt >= DATEADD(hour,-24,GETUTCDATE()) THEN 1 ELSE 0 END) AS last24h
+		FROM dbo.AuditLog;");
 
 	return Results.Ok(new
 	{
@@ -75,7 +133,12 @@ app.MapGet("/agent/context", async () =>
 			shoppingItems = shoppingCount
 		},
 		capabilities = new { inventory = true, recipes = true, mealPlans = true, shopping = true },
-		storage = new { planner = "sql", recipes = "sql", shopping = "sql" }
+		storage = new { planner = "sql", recipes = "sql", shopping = "sql" },
+		auditLog = new
+		{
+			total = (int)(auditRow?.total ?? 0),
+			last24h = (int)(auditRow?.last24h ?? 0)
+		}
 	});
 });
 
@@ -190,7 +253,16 @@ app.MapGet("/recipes", async () =>
 
 app.MapPost("/recipes", async (RecipeCreateDto dto) =>
 {
-	if (string.IsNullOrWhiteSpace(dto.Name)) return Results.BadRequest(new { error = "Name is required." });
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (string.IsNullOrWhiteSpace(dto.Name))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/recipes", null, 400, "error");
+		return Results.BadRequest(new { error = "Name is required." });
+	}
 
 	var name = dto.Name.Trim();
 	var tags = dto.Tags ?? [];
@@ -200,7 +272,6 @@ app.MapPost("/recipes", async (RecipeCreateDto dto) =>
 		? DateTimeOffset.FromUnixTimeMilliseconds(dto.AddedAtUnixMs.Value).UtcDateTime
 		: (DateTime?)null;
 
-	using var conn = new SqlConnection(connString);
 	var id = await conn.ExecuteScalarAsync<int>(@"
 		INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, IngredientsJson, StepsJson, Comments, ImageUrl)
 		VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
@@ -221,17 +292,23 @@ app.MapPost("/recipes", async (RecipeCreateDto dto) =>
 			ImageUrl = string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim()
 		});
 
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/recipes", JsonSerializer.Serialize(new { dto.Name }), 201, "success");
 	return Results.Created($"/recipes/{id}", new { recipeId = id, Name = name, dto.Servings });
 });
 
 app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 {
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
 	if (dto.Entries is null || dto.Entries.Length == 0)
 	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/recipes/bulk", null, 400, "error");
 		return Results.BadRequest(new { error = "At least one entry is required." });
 	}
 
-	using var conn = new SqlConnection(connString);
 	await conn.OpenAsync();
 	using var tx = conn.BeginTransaction();
 
@@ -277,15 +354,23 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 	}
 
 	await tx.CommitAsync();
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/recipes/bulk", JsonSerializer.Serialize(new { count = dto.Entries.Length }), 200, "success");
 	return Results.Ok(new { accepted = dto.Entries.Length, processed });
 });
 
 app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
 {
 	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
 
 	var exists = await conn.ExecuteScalarAsync<int?>("SELECT RecipeId FROM dbo.Recipes WHERE RecipeId = @id", new { id });
-	if (exists is null) return Results.NotFound();
+	if (exists is null)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PATCH", $"/recipes/{id}", null, 404, "error");
+		return Results.NotFound();
+	}
 
 	var setClauses = new List<string>();
 	var parameters = new DynamicParameters();
@@ -310,6 +395,25 @@ app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
 	if (setClauses.Count == 0) return Results.NoContent();
 
 	await conn.ExecuteAsync($"UPDATE dbo.Recipes SET {string.Join(", ", setClauses)} WHERE RecipeId = @id", parameters);
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PATCH", $"/recipes/{id}", null, 204, "success");
+	return Results.NoContent();
+});
+
+app.MapDelete("/recipes/{id:int}", async (int id, string? idempotencyKey) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, idempotencyKey);
+	if (idem is not null) return idem;
+
+	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.Recipes WHERE RecipeId = @id", new { id });
+	if (deleted == 0)
+	{
+		if (!string.IsNullOrWhiteSpace(idempotencyKey))
+			await LogAudit(conn, idempotencyKey, null, "DELETE", $"/recipes/{id}", null, 404, "error");
+		return Results.NotFound(new { error = "Recipe not found." });
+	}
+
+	await LogAudit(conn, idempotencyKey, null, "DELETE", $"/recipes/{id}", null, 204, "success");
 	return Results.NoContent();
 });
 
@@ -347,16 +451,34 @@ app.MapGet("/meal-plans", async () =>
 
 app.MapPost("/meal-plans", async (MealPlanEntryCreateDto dto) =>
 {
-	if (dto.PlanDate == default) return Results.BadRequest(new { error = "PlanDate is required." });
-	if (string.IsNullOrWhiteSpace(dto.MealType)) return Results.BadRequest(new { error = "MealType is required." });
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (dto.PlanDate == default)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans", null, 400, "error");
+		return Results.BadRequest(new { error = "PlanDate is required." });
+	}
+	if (string.IsNullOrWhiteSpace(dto.MealType))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans", null, 400, "error");
+		return Results.BadRequest(new { error = "MealType is required." });
+	}
 
 	var mealType = dto.MealType.Trim();
 	if (string.Equals(mealType, "Notes", StringComparison.OrdinalIgnoreCase))
 	{
-		if (string.IsNullOrWhiteSpace(dto.Notes)) return Results.BadRequest(new { error = "Notes is required for Notes meal type." });
+		if (string.IsNullOrWhiteSpace(dto.Notes))
+		{
+			if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+				await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans", null, 400, "error");
+			return Results.BadRequest(new { error = "Notes is required for Notes meal type." });
+		}
 		var planDateValue = dto.PlanDate.ToDateTime(TimeOnly.MinValue);
 
-		using var conn = new SqlConnection(connString);
 		var id = await conn.ExecuteScalarAsync<int>(@"
 			DECLARE @ExistingId INT = (
 				SELECT TOP 1 MealPlanEntryId FROM dbo.MealPlanEntries
@@ -377,49 +499,61 @@ app.MapPost("/meal-plans", async (MealPlanEntryCreateDto dto) =>
 			END",
 			new { PlanDate = planDateValue, Notes = dto.Notes?.Trim() });
 
+		await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans", JsonSerializer.Serialize(new { dto.PlanDate, mealType }), 201, "success");
 		return Results.Created($"/meal-plans/{id}", new { mealPlanEntryId = id });
 	}
 
-	if (string.IsNullOrWhiteSpace(dto.RecipeName)) return Results.BadRequest(new { error = "RecipeName is required." });
+	if (string.IsNullOrWhiteSpace(dto.RecipeName))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans", null, 400, "error");
+		return Results.BadRequest(new { error = "RecipeName is required." });
+	}
 	var entryDateValue = dto.PlanDate.ToDateTime(TimeOnly.MinValue);
 
-	using (var conn = new SqlConnection(connString))
-	{
-		var id = await conn.ExecuteScalarAsync<int>(@"
-			DECLARE @ExistingId INT = (
-				SELECT TOP 1 MealPlanEntryId FROM dbo.MealPlanEntries
-				WHERE PlanDate = @PlanDate AND MealType = @MealType AND RecipeName = @RecipeName
-				ORDER BY MealPlanEntryId DESC
-			);
+	var entryId = await conn.ExecuteScalarAsync<int>(@"
+		DECLARE @ExistingId INT = (
+			SELECT TOP 1 MealPlanEntryId FROM dbo.MealPlanEntries
+			WHERE PlanDate = @PlanDate AND MealType = @MealType AND RecipeName = @RecipeName
+			ORDER BY MealPlanEntryId DESC
+		);
 
-			IF @ExistingId IS NULL
-			BEGIN
-				INSERT INTO dbo.MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
-				VALUES (@PlanDate, @MealType, @RecipeId, @RecipeName, @Notes);
-				SELECT CAST(SCOPE_IDENTITY() AS int);
-			END
-			ELSE
-			BEGIN
-				SELECT @ExistingId;
-			END",
-			new
-			{
-				PlanDate = entryDateValue,
-				MealType = mealType,
-				dto.RecipeId,
-				RecipeName = dto.RecipeName.Trim(),
-				Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim()
-			});
+		IF @ExistingId IS NULL
+		BEGIN
+			INSERT INTO dbo.MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
+			VALUES (@PlanDate, @MealType, @RecipeId, @RecipeName, @Notes);
+			SELECT CAST(SCOPE_IDENTITY() AS int);
+		END
+		ELSE
+		BEGIN
+			SELECT @ExistingId;
+		END",
+		new
+		{
+			PlanDate = entryDateValue,
+			MealType = mealType,
+			dto.RecipeId,
+			RecipeName = dto.RecipeName.Trim(),
+			Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim()
+		});
 
-		return Results.Created($"/meal-plans/{id}", new { mealPlanEntryId = id });
-	}
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans", JsonSerializer.Serialize(new { dto.PlanDate, mealType }), 201, "success");
+	return Results.Created($"/meal-plans/{entryId}", new { mealPlanEntryId = entryId });
 });
 
 app.MapPost("/meal-plans/bulk", async (MealPlanBulkCreateDto dto) =>
 {
-	if (dto.Entries is null || dto.Entries.Length == 0) return Results.BadRequest(new { error = "At least one entry is required." });
-
 	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (dto.Entries is null || dto.Entries.Length == 0)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans/bulk", null, 400, "error");
+		return Results.BadRequest(new { error = "At least one entry is required." });
+	}
+
 	await conn.OpenAsync();
 	using var tx = conn.BeginTransaction();
 
@@ -471,30 +605,50 @@ app.MapPost("/meal-plans/bulk", async (MealPlanBulkCreateDto dto) =>
 	}
 
 	await tx.CommitAsync();
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans/bulk", JsonSerializer.Serialize(new { count = dto.Entries.Length }), 200, "success");
 	return Results.Ok(new { accepted = dto.Entries.Length, processed });
 });
 
-app.MapDelete("/meal-plans", async (string planDate, string mealType, string recipeName) =>
+app.MapDelete("/meal-plans", async (string planDate, string mealType, string recipeName, string? idempotencyKey) =>
 {
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, idempotencyKey);
+	if (idem is not null) return idem;
+
 	if (!DateOnly.TryParse(planDate, out var parsedDate)) return Results.BadRequest(new { error = "planDate must be YYYY-MM-DD." });
 	if (string.IsNullOrWhiteSpace(mealType) || string.IsNullOrWhiteSpace(recipeName)) return Results.BadRequest(new { error = "mealType and recipeName are required." });
 
-	using var conn = new SqlConnection(connString);
 	var deleted = await conn.ExecuteAsync(@"
 		DELETE TOP (1)
 		FROM dbo.MealPlanEntries
 		WHERE PlanDate = @PlanDate AND MealType = @MealType AND RecipeName = @RecipeName;",
 		new { PlanDate = parsedDate.ToDateTime(TimeOnly.MinValue), MealType = mealType.Trim(), RecipeName = recipeName.Trim() });
 
-	return deleted > 0 ? Results.NoContent() : Results.NotFound(new { error = "Meal entry not found." });
+	if (deleted == 0)
+	{
+		if (!string.IsNullOrWhiteSpace(idempotencyKey))
+			await LogAudit(conn, idempotencyKey, null, "DELETE", "/meal-plans", null, 404, "error");
+		return Results.NotFound(new { error = "Meal entry not found." });
+	}
+
+	await LogAudit(conn, idempotencyKey, null, "DELETE", "/meal-plans", JsonSerializer.Serialize(new { planDate, mealType, recipeName }), 204, "success");
+	return Results.NoContent();
 });
 
 app.MapPut("/meal-plans/note", async (MealPlanNoteUpsertDto dto) =>
 {
-	if (dto.PlanDate == default) return Results.BadRequest(new { error = "PlanDate is required." });
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (dto.PlanDate == default)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", "/meal-plans/note", null, 400, "error");
+		return Results.BadRequest(new { error = "PlanDate is required." });
+	}
 	var noteDateValue = dto.PlanDate.ToDateTime(TimeOnly.MinValue);
 
-	using var conn = new SqlConnection(connString);
 	await conn.ExecuteAsync(@"
 		IF NOT EXISTS (SELECT 1 FROM dbo.MealPlanEntries WHERE PlanDate = @PlanDate AND MealType = 'Notes')
 		BEGIN
@@ -508,6 +662,7 @@ app.MapPut("/meal-plans/note", async (MealPlanNoteUpsertDto dto) =>
 		END",
 		new { PlanDate = noteDateValue, Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim() });
 
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", "/meal-plans/note", JsonSerializer.Serialize(new { dto.PlanDate }), 204, "success");
 	return Results.NoContent();
 });
 
@@ -627,6 +782,33 @@ static async Task EnsureSchemaAsync(string connString)
 				CONSTRAINT [UQ_UserSessions_Token] UNIQUE ([SessionToken]),
 				CONSTRAINT [FK_UserSessions_Users] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([UserId])
 			);
+		END;
+
+		IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL
+		BEGIN
+			CREATE TABLE [dbo].[AuditLog]
+			(
+				[AuditId]        INT            IDENTITY(1,1) NOT NULL,
+				[IdempotencyKey] NVARCHAR(64)   NULL,
+				[ActionId]       NVARCHAR(64)   NULL,
+				[Actor]          NVARCHAR(100)  NULL,
+				[Source]         NVARCHAR(100)  NULL,
+				[Method]         NVARCHAR(10)   NOT NULL,
+				[Endpoint]       NVARCHAR(200)  NOT NULL,
+				[RequestBody]    NVARCHAR(MAX)  NULL,
+				[StatusCode]     INT            NOT NULL,
+				[Outcome]        NVARCHAR(20)   NOT NULL,
+				[RequestedAtUtc] DATETIME2      NULL,
+				[CreatedAt]      DATETIME2      NOT NULL CONSTRAINT [DF_AuditLog_CreatedAt] DEFAULT (GETUTCDATE()),
+				CONSTRAINT [PK_AuditLog] PRIMARY KEY CLUSTERED ([AuditId] ASC)
+			);
+		END;
+
+		IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_AuditLog_IdempotencyKey' AND object_id = OBJECT_ID('dbo.AuditLog'))
+		BEGIN
+			CREATE UNIQUE INDEX [UX_AuditLog_IdempotencyKey]
+				ON [dbo].[AuditLog]([IdempotencyKey])
+				WHERE [IdempotencyKey] IS NOT NULL;
 		END;
 	");
 }
@@ -776,12 +958,25 @@ app.MapGet("/shopping", async () =>
 
 app.MapPost("/shopping/items", async (ShoppingItemDto dto) =>
 {
-	if (string.IsNullOrWhiteSpace(dto.Name)) return Results.BadRequest(new { error = "Name is required." });
-	if (string.IsNullOrWhiteSpace(dto.ClientId)) return Results.BadRequest(new { error = "ClientId is required." });
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (string.IsNullOrWhiteSpace(dto.Name))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/shopping/items", null, 400, "error");
+		return Results.BadRequest(new { error = "Name is required." });
+	}
+	if (string.IsNullOrWhiteSpace(dto.ClientId))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/shopping/items", null, 400, "error");
+		return Results.BadRequest(new { error = "ClientId is required." });
+	}
 
 	var recipesJson = dto.Recipes?.Length > 0 ? JsonSerializer.Serialize(dto.Recipes) : null;
 
-	using var conn = new SqlConnection(connString);
 	await conn.ExecuteAsync(@"
 		IF NOT EXISTS (SELECT 1 FROM dbo.ShoppingItems WHERE ClientId = @ClientId)
 		INSERT INTO dbo.ShoppingItems(ClientId, Name, Qty, Category, Store, Note, RecipesJson)
@@ -797,39 +992,68 @@ app.MapPost("/shopping/items", async (ShoppingItemDto dto) =>
 			RecipesJson = recipesJson
 		});
 
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/shopping/items", JsonSerializer.Serialize(new { dto.ClientId, dto.Name }), 201, "success");
 	return Results.Created($"/shopping/items/{dto.ClientId}", new { dto.ClientId });
 });
 
 app.MapPut("/shopping/items/{clientId}/check", async (string clientId, ShoppingCheckDto dto) =>
 {
 	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
 	await conn.ExecuteAsync(
 		"UPDATE dbo.ShoppingItems SET IsChecked = @IsChecked WHERE ClientId = @ClientId;",
 		new { IsChecked = dto.Checked, ClientId = clientId });
+
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/shopping/items/{clientId}/check", JsonSerializer.Serialize(new { dto.Checked }), 204, "success");
 	return Results.NoContent();
 });
 
-app.MapDelete("/shopping/items/{clientId}", async (string clientId) =>
+app.MapDelete("/shopping/items/{clientId}", async (string clientId, string? idempotencyKey) =>
 {
 	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, idempotencyKey);
+	if (idem is not null) return idem;
+
 	var deleted = await conn.ExecuteAsync(
 		"DELETE FROM dbo.ShoppingItems WHERE ClientId = @ClientId;",
 		new { ClientId = clientId });
-	return deleted > 0 ? Results.NoContent() : Results.NotFound(new { error = "Item not found." });
+
+	if (deleted == 0)
+	{
+		if (!string.IsNullOrWhiteSpace(idempotencyKey))
+			await LogAudit(conn, idempotencyKey, null, "DELETE", $"/shopping/items/{clientId}", null, 404, "error");
+		return Results.NotFound(new { error = "Item not found." });
+	}
+
+	await LogAudit(conn, idempotencyKey, null, "DELETE", $"/shopping/items/{clientId}", null, 204, "success");
+	return Results.NoContent();
 });
 
-app.MapDelete("/shopping/checked", async () =>
+app.MapDelete("/shopping/checked", async (string? idempotencyKey) =>
 {
 	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, idempotencyKey);
+	if (idem is not null) return idem;
+
 	await conn.ExecuteAsync("DELETE FROM dbo.ShoppingItems WHERE IsChecked = 1;");
+	await LogAudit(conn, idempotencyKey, null, "DELETE", "/shopping/checked", null, 204, "success");
 	return Results.NoContent();
 });
 
 app.MapPost("/shopping/bulk", async (ShoppingBulkDto dto) =>
 {
-	if (dto.Items is null || dto.Items.Length == 0) return Results.Ok(new { accepted = 0, processed = 0 });
-
 	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (dto.Items is null || dto.Items.Length == 0)
+	{
+		await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/shopping/bulk", null, 200, "success");
+		return Results.Ok(new { accepted = 0, processed = 0 });
+	}
+
 	await conn.OpenAsync();
 	using var tx = conn.BeginTransaction();
 
@@ -858,6 +1082,7 @@ app.MapPost("/shopping/bulk", async (ShoppingBulkDto dto) =>
 	}
 
 	await tx.CommitAsync();
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/shopping/bulk", JsonSerializer.Serialize(new { count = dto.Items.Length }), 200, "success");
 	return Results.Ok(new { accepted = dto.Items.Length, processed });
 });
 
@@ -943,6 +1168,39 @@ app.MapGet("/auth/me", async (HttpContext ctx) =>
 
 app.Run();
 
+async Task LogAudit(System.Data.IDbConnection db, string? idempotencyKey, AuditDto? audit, string method, string endpoint, string? requestBody, int statusCode, string outcome)
+{
+	try
+	{
+		await db.ExecuteAsync(@"
+			INSERT INTO dbo.AuditLog (IdempotencyKey, ActionId, Actor, Source, Method, Endpoint, RequestBody, StatusCode, Outcome, RequestedAtUtc)
+			VALUES (@IdempotencyKey, @ActionId, @Actor, @Source, @Method, @Endpoint, @RequestBody, @StatusCode, @Outcome, @RequestedAtUtc);",
+			new
+			{
+				IdempotencyKey = string.IsNullOrWhiteSpace(idempotencyKey) ? null : idempotencyKey.Trim(),
+				ActionId = audit?.ActionId,
+				Actor = audit?.Actor,
+				Source = audit?.Source,
+				Method = method,
+				Endpoint = endpoint,
+				RequestBody = requestBody,
+				StatusCode = statusCode,
+				Outcome = outcome,
+				RequestedAtUtc = string.IsNullOrWhiteSpace(audit?.RequestedAtUtc) ? (DateTime?)null : DateTime.Parse(audit.RequestedAtUtc, null, System.Globalization.DateTimeStyles.RoundtripKind)
+			});
+	}
+	catch { /* best-effort — never let audit failure break the request */ }
+}
+
+async Task<IResult?> CheckIdempotency(System.Data.IDbConnection db, string? idempotencyKey)
+{
+	if (string.IsNullOrWhiteSpace(idempotencyKey)) return null;
+	var existing = await db.ExecuteScalarAsync<int?>(
+		"SELECT AuditId FROM dbo.AuditLog WHERE IdempotencyKey = @key AND Outcome = 'success';",
+		new { key = idempotencyKey.Trim() });
+	return existing.HasValue ? Results.Ok(new { idempotent = true }) : null;
+}
+
 static JsonElement? FindRecipeNode(JsonElement root)
 {
 	if (root.ValueKind == JsonValueKind.Object)
@@ -1005,7 +1263,9 @@ static string? GetStringOrFirstArray(JsonElement el, string key)
 	return null;
 }
 
-record ItemDto(string Name, int Quantity);
+record AuditDto(string? ActionId, string? Actor, string? Source, string? RequestedAtUtc);
+record ItemDto(string Name, int Quantity, string? IdempotencyKey = null, AuditDto? Audit = null);
+record ItemUpdateDto(int Quantity, string? IdempotencyKey = null, AuditDto? Audit = null);
 record RecipeCreateDto(
 	string Name,
 	string? Course,
@@ -1018,8 +1278,10 @@ record RecipeCreateDto(
 	string[]? Ingredients,
 	string[]? Steps,
 	string? Comments,
-	string? ImageUrl);
-record RecipeBulkCreateDto(RecipeCreateDto[] Entries);
+	string? ImageUrl,
+	string? IdempotencyKey = null,
+	AuditDto? Audit = null);
+record RecipeBulkCreateDto(RecipeCreateDto[] Entries, string? IdempotencyKey = null, AuditDto? Audit = null);
 record RecipePatchDto(
 	string? Name,
 	string? Course,
@@ -1031,17 +1293,21 @@ record RecipePatchDto(
 	string[]? Ingredients,
 	string[]? Steps,
 	string? Comments,
-	string? ImageUrl);
-record MealPlanEntryCreateDto(DateOnly PlanDate, string MealType, int? RecipeId, string? RecipeName, string? Notes);
-record MealPlanBulkCreateDto(MealPlanEntryCreateDto[] Entries);
-record MealPlanNoteUpsertDto(DateOnly PlanDate, string? Notes);
+	string? ImageUrl,
+	string? IdempotencyKey = null,
+	AuditDto? Audit = null);
+record MealPlanEntryCreateDto(DateOnly PlanDate, string MealType, int? RecipeId, string? RecipeName, string? Notes, string? IdempotencyKey = null, AuditDto? Audit = null);
+record MealPlanBulkCreateDto(MealPlanEntryCreateDto[] Entries, string? IdempotencyKey = null, AuditDto? Audit = null);
+record MealPlanNoteUpsertDto(DateOnly PlanDate, string? Notes, string? IdempotencyKey = null, AuditDto? Audit = null);
 record ShoppingItemRow(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string? RecipesJson, bool IsChecked);
-record ShoppingItemDto(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string[]? Recipes);
-record ShoppingCheckDto(bool Checked);
+record ShoppingItemDto(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string[]? Recipes, string? IdempotencyKey = null, AuditDto? Audit = null);
+record ShoppingCheckDto(bool Checked, string? IdempotencyKey = null, AuditDto? Audit = null);
 record ShoppingBulkItemDto(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string[]? Recipes, bool Checked);
-record ShoppingBulkDto(ShoppingBulkItemDto[] Items);
+record ShoppingBulkDto(ShoppingBulkItemDto[] Items, string? IdempotencyKey = null, AuditDto? Audit = null);
 record RecipeImportDto(string Url);
 record AuthRegisterDto(string DisplayName, string Email, string Password);
 record AuthLoginDto(string Email, string Password);
 record UserRow(int UserId, string DisplayName, string Email, string PasswordHash, string Role);
 record SessionWithUser(int UserId, string DisplayName, string Email, string Role, DateTime ExpiresAt);
+
+public partial class Program { }

@@ -22,19 +22,28 @@ Recommended write envelope fields:
   "counts": {
     "items": 0,
     "recipes": 0,
-    "mealPlanEntries": 0
+    "mealPlanEntries": 0,
+    "shoppingItems": 0
   },
   "capabilities": {
     "inventory": true,
     "recipes": true,
-    "mealPlans": true
+    "mealPlans": true,
+    "shopping": true
   },
   "storage": {
     "planner": "sql",
-    "recipes": "sql"
+    "recipes": "sql",
+    "shopping": "sql"
+  },
+  "auditLog": {
+    "total": 42,
+    "last24h": 5
   }
 }
 ```
+
+`auditLog.total` is the all-time count of rows in `dbo.AuditLog`. `auditLog.last24h` is the count of rows created in the last 24 hours.
 
 ---
 
