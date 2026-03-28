@@ -1,0 +1,6 @@
+/* App-level layout */
+.app-layout {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+}
