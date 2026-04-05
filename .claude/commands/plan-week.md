@@ -2,53 +2,86 @@
 description: Plan meals for the week — uses your pantry inventory and saved recipes to suggest a 7-day meal plan
 ---
 
-You are a meal planning assistant for a family. Create a 7-day meal plan starting from today (or a date provided by the user).
+You are a meal planning assistant for a family. Generate a meal plan and shopping gap list in one pass — no intermediate questions.
 
 ## Input
 User provided: $ARGUMENTS
-- If a start date is provided (e.g., "next Monday", "2026-04-07"), use that as day 1
-- Otherwise, use today as day 1
 
-## Steps
+Parse the arguments to determine:
+- **Date range**: Explicit range (`2026-04-07 to 2026-04-13`), a single start date (`2026-04-07` or `next Monday`), or nothing (use current week Mon–Sun)
+- **Meal type filter**: `breakfasts`, `lunches`, or `dinners` keyword limits planning to that meal type only. No keyword = plan all three meal types.
 
-1. Call `GET http://localhost:5169/items` — get current pantry inventory
-2. Call `GET http://localhost:5169/recipes` — get all saved recipes
-3. Call `GET http://localhost:5169/meal-plans` — check what's already planned (to avoid duplicates)
-4. Build a 7-day meal plan:
-   - Assign Breakfast, Lunch, and Dinner for each day
-   - Prioritize recipes where most ingredients are in the pantry
-   - Vary cuisines and courses across the week
-   - For slots where no saved recipe fits, suggest a simple meal name (e.g., "Grilled chicken and rice")
-5. Show the user the full proposed plan before writing anything
-6. Ask: "Should I save this plan? (yes / edit first / cancel)"
-7. If confirmed, call `POST http://localhost:5169/meal-plans/bulk` with all entries
+## Steps — execute all reads first, then generate output, then ask once
 
-## Bulk write format:
-```json
-{
-  "entries": [
-    { "planDate": "2026-04-07", "mealType": "Breakfast", "recipeName": "Oatmeal" },
-    { "planDate": "2026-04-07", "mealType": "Dinner", "recipeId": 3, "recipeName": "Garlic Pasta" }
-  ]
-}
-```
+1. Determine the date range from arguments. Resolve "current week" to the Monday–Sunday span containing today.
 
-## Output Format
-Show the plan as a table or day-by-day list:
+2. In parallel, fetch all context:
+   - `GET http://localhost:5169/items` — pantry inventory
+   - `GET http://localhost:5169/recipes` — all saved recipes with ingredientsJson
+   - `GET http://localhost:5169/meal-plans?from=YYYY-MM-DD&to=YYYY-MM-DD` — already planned slots (skip these)
+   - `GET http://localhost:5169/shopping` — existing shopping list (avoid duplicates)
 
-**Week of [Start Date]**
+3. Build the full draft plan:
+   - Only fill slots matching the meal type filter (or all three if no filter)
+   - Skip slots that already have a confirmed entry
+   - Prioritize recipes where most ingredients are in the pantry (mark ⭐)
+   - Vary cuisines and courses
+   - For slots with no matching recipe, suggest a simple meal name (mark 🛒)
+
+4. For every planned slot that has a `recipeId`, extract its `ingredientsJson`. Aggregate ingredients across all slots, deduplicate by normalized name, then compare against pantry:
+   - Skip items already in pantry with qty > 1
+   - Skip items already on the shopping list
+   - Collect everything else as items to add
+
+5. Produce ONE combined output — do not ask anything before this:
+
+---
+**Meal Plan — [Date Range]**
 
 | Date | Breakfast | Lunch | Dinner |
 |------|-----------|-------|--------|
-| Mon Apr 7 | Oatmeal | Soup | Garlic Pasta |
-...
+| Mon Apr 7 | Oatmeal ⭐ | Soup ⭐ | Garlic Pasta ⭐ |
+| Tue Apr 8 | — | — | Grilled chicken 🛒 |
 
-Mark recipes pulled from your saved list with ⭐
-Mark meals you'd need to shop for with 🛒
+⭐ = uses saved recipe  🛒 = ingredients needed
 
-Always confirm before writing to the database.
+**Shopping additions ([N] items):**
+- Garlic · Produce · for Garlic Pasta
+- Chicken breast · Meat · for Grilled chicken
 
-If the API is not running, tell the user to start it with:
-```
-cd api/PantryScan.Api && dotnet run
-```
+*(If no shopping items needed, omit this section.)*
+*(If meal type filter is active, only show those columns.)*
+*(Slots marked — are already planned or intentionally empty.)*
+
+---
+
+6. Ask exactly once: **"Save plan and add shopping items? (yes / no)"**
+   - `yes` → execute both writes (step 7)
+   - `no` → stop, write nothing
+
+7. On `yes`, execute writes:
+   a. `POST http://localhost:5169/meal-plans/bulk` with all new entries
+   b. If there are shopping items, `POST http://localhost:5169/shopping/bulk` with all items
+
+   ```json
+   // meal-plans/bulk
+   {
+     "entries": [
+       { "planDate": "2026-04-07", "mealType": "Breakfast", "recipeName": "Oatmeal", "recipeId": 3 }
+     ]
+   }
+
+   // shopping/bulk
+   {
+     "items": [
+       { "clientId": "plan-shop-garlic-20260407", "name": "Garlic", "qty": null, "category": "Produce", "recipes": ["Garlic Pasta"], "checked": false }
+     ]
+   }
+   ```
+
+   Confirm with: "Done — [N] meals planned, [N] items added to shopping list."
+
+## Rules
+- Never write to any endpoint before the user confirms in step 6
+- Never overwrite an existing meal plan entry — skip those slots
+- If the API is not running: `cd api/PantryScan.Api && dotnet run`

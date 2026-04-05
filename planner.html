@@ -286,6 +286,46 @@
     }
     .icon-btn:hover { background: rgba(59,130,246,0.2); color: #fff; }
 
+    /* ── AI action bar ── */
+    .ai-action-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 14px;
+      background: rgba(10,14,22,0.9);
+      border-bottom: 1px solid rgba(59,130,246,0.12);
+      flex-shrink: 0;
+    }
+    .ai-bar-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: rgba(147,197,253,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+    .ai-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(30,64,175,0.18);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 8px;
+      color: #93c5fd;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: background 0.18s, border-color 0.18s, color 0.18s;
+    }
+    .ai-card:hover {
+      background: rgba(59,130,246,0.25);
+      border-color: rgba(99,149,246,0.55);
+      color: #fff;
+    }
+    .ai-card-icon { font-size: 0.9rem; }
+
     /* ── Day column headers ── */
     .day-headers {
       display: grid;
@@ -695,6 +735,23 @@
       </div>
     </div>
 
+    <!-- AI action bar -->
+    <div class="ai-action-bar">
+      <span class="ai-bar-label">AI</span>
+      <button class="ai-card" onclick="triggerAiPlan('week')">
+        <span class="ai-card-icon">🗓️</span> Plan this week
+      </button>
+      <button class="ai-card" onclick="triggerAiPlan('breakfasts')">
+        <span class="ai-card-icon">🌅</span> Plan breakfasts
+      </button>
+      <button class="ai-card" onclick="triggerAiPlan('dinners')">
+        <span class="ai-card-icon">🍽️</span> Plan dinners
+      </button>
+      <button class="ai-card" onclick="triggerPlanAndShop()">
+        <span class="ai-card-icon">🛒</span> Plan &amp; shop
+      </button>
+    </div>
+
     <!-- Day-of-week headers -->
     <div class="day-headers" id="dayHeaders">
       <div class="week-spacer"></div>
@@ -1001,6 +1058,61 @@ function toISO(d) {
 function isToday(d) {
   const t = new Date(); t.setHours(0,0,0,0);
   return d.getTime() === t.getTime();
+}
+
+/* ════════════════════════════════════════════════════════════
+   AI action bar
+════════════════════════════════════════════════════════════ */
+function getWeekRange() {
+  const mon = weekStart(cursor);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return { from: toISO(mon), to: toISO(sun) };
+}
+
+function triggerAiPlan(mode) {
+  const { from, to } = getWeekRange();
+  let prompt;
+  if (mode === 'week')        prompt = `/plan-week ${from} to ${to}`;
+  else if (mode === 'breakfasts') prompt = `/plan-week breakfasts ${from} to ${to}`;
+  else if (mode === 'dinners')    prompt = `/plan-week dinners ${from} to ${to}`;
+
+  navigator.clipboard.writeText(prompt).then(() => {
+    showAiToast(`Copied! Paste into Claude Code: ${prompt}`);
+  }).catch(() => {
+    showAiToast(`Paste this into Claude Code: ${prompt}`, 7000);
+  });
+}
+
+function triggerPlanAndShop() {
+  const { from, to } = getWeekRange();
+  const prompt = `/plan-and-shop ${from} to ${to}`;
+  navigator.clipboard.writeText(prompt).then(() => {
+    showAiToast(`Copied! Paste into Claude Code: ${prompt}`);
+  }).catch(() => {
+    showAiToast(`Paste this into Claude Code: ${prompt}`, 7000);
+  });
+}
+
+function showAiToast(msg, duration = 3500) {
+  let toast = document.getElementById('aiToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'aiToast';
+    Object.assign(toast.style, {
+      position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+      background: '#1e3a8a', color: '#e0f2fe', padding: '10px 20px',
+      borderRadius: '10px', fontSize: '0.85rem', fontWeight: '600',
+      zIndex: '9999', opacity: '0', transition: 'opacity 0.25s',
+      pointerEvents: 'none', maxWidth: '520px', textAlign: 'center',
+      border: '1px solid rgba(59,130,246,0.4)'
+    });
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = '0'; }, duration);
 }
 
 // Monday-first Monday of a given date's week

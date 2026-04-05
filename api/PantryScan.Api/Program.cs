@@ -456,11 +456,22 @@ app.MapGet("/recipes/find-image", async (string name) =>
 	}
 });
 
-app.MapGet("/meal-plans", async () =>
+app.MapGet("/meal-plans", async (string? from, string? to) =>
 {
 	using var conn = new SqlConnection(connString);
-	var rows = await conn.QueryAsync("SELECT MealPlanEntryId, PlanDate, MealType, RecipeId, RecipeName, Notes, CreatedAt FROM dbo.MealPlanEntries ORDER BY PlanDate DESC, MealPlanEntryId DESC");
-	return Results.Ok(rows);
+	if (!string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to)
+		&& DateTime.TryParse(from, out var fromDate) && DateTime.TryParse(to, out var toDate))
+	{
+		var rows = await conn.QueryAsync(
+			"SELECT MealPlanEntryId, PlanDate, MealType, RecipeId, RecipeName, Notes, CreatedAt FROM dbo.MealPlanEntries WHERE PlanDate >= @From AND PlanDate <= @To ORDER BY PlanDate ASC, MealPlanEntryId ASC",
+			new { From = fromDate.Date, To = toDate.Date });
+		return Results.Ok(rows);
+	}
+	else
+	{
+		var rows = await conn.QueryAsync("SELECT MealPlanEntryId, PlanDate, MealType, RecipeId, RecipeName, Notes, CreatedAt FROM dbo.MealPlanEntries ORDER BY PlanDate DESC, MealPlanEntryId DESC");
+		return Results.Ok(rows);
+	}
 });
 
 app.MapPost("/meal-plans", async (MealPlanEntryCreateDto dto) =>
