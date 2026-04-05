@@ -166,6 +166,121 @@ Response (200):
 
 ---
 
+---
+
+## 4) Calendar Contracts
+
+### List events
+`GET /calendar?from=2026-03-01&to=2026-03-31`
+
+Response (200): array of event objects.
+
+### Create event
+`POST /calendar`
+
+Request:
+```json
+{
+  "title": "Doctor appointment",
+  "startDate": "2026-03-15T10:00:00",
+  "endDate": null,
+  "allDay": false,
+  "description": "Annual checkup",
+  "category": "Medical",
+  "color": null,
+  "idempotencyKey": "cal-abc123",
+  "audit": { "actor": "user", "source": "calendar-ui" }
+}
+```
+
+Response (201):
+```json
+{ "eventId": 1, "title": "Doctor appointment" }
+```
+
+Validation:
+- `title` required.
+- `startDate` required, valid datetime.
+
+### Update event
+`PUT /calendar/{id}`
+
+Request: any subset of create fields (all optional on update).
+
+Response: `204` on success, `404` if not found.
+
+### Delete event
+`DELETE /calendar/{id}`
+
+Response: `204` on success, `404` if not found.
+
+---
+
+## 5) Todos Contracts
+
+### List todos
+`GET /todos?list=General&completed=false`
+
+- `list` (optional): filter by list name.
+- `completed` (optional): `true` or `false`.
+
+Response (200): array of todo objects.
+
+### List names
+`GET /todos/lists`
+
+Response (200): string array of distinct list names.
+
+### Create todo
+`POST /todos`
+
+Request:
+```json
+{
+  "title": "Buy birthday cake",
+  "notes": "Chocolate, 8-inch",
+  "dueDate": "2026-03-20",
+  "listName": "Family",
+  "priority": 3,
+  "idempotencyKey": "todo-xyz",
+  "audit": { "actor": "user", "source": "todos-ui" }
+}
+```
+
+Response (201):
+```json
+{ "todoId": 5, "title": "Buy birthday cake" }
+```
+
+Priority values: `1` = Low, `2` = Normal, `3` = High.
+
+Validation:
+- `title` required.
+
+### Update todo
+`PUT /todos/{id}`
+
+Request: any subset of create fields (all optional on update).
+
+Response: `204` on success, `404` if not found.
+
+### Toggle complete
+`PUT /todos/{id}/complete`
+
+Request:
+```json
+{ "isCompleted": true }
+```
+
+Response: `204` on success, `404` if not found. Sets `completedAt` when marking done; clears it when reopening.
+
+### Delete todo
+`DELETE /todos/{id}`
+
+Response: `204` on success, `404` if not found.
+
+---
+
 ## Error Shape
 Current API responses use simple shape:
 ```json

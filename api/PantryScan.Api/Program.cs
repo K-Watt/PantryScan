@@ -117,6 +117,9 @@ app.MapGet("/agent/context", async () =>
 	var recipesCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Recipes;");
 	var mealPlansCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.MealPlanEntries;");
 	var shoppingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.ShoppingItems;");
+	var calendarCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.CalendarEvents;");
+	var todosCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Todos;");
+	var openTodosCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Todos WHERE IsCompleted = 0;");
 	var auditRow = await conn.QueryFirstOrDefaultAsync(@"
 		SELECT
 			COUNT(*) AS total,
@@ -130,10 +133,13 @@ app.MapGet("/agent/context", async () =>
 			items = itemsCount,
 			recipes = recipesCount,
 			mealPlanEntries = mealPlansCount,
-			shoppingItems = shoppingCount
+			shoppingItems = shoppingCount,
+			calendarEvents = calendarCount,
+			todos = todosCount,
+			openTodos = openTodosCount
 		},
-		capabilities = new { inventory = true, recipes = true, mealPlans = true, shopping = true },
-		storage = new { planner = "sql", recipes = "sql", shopping = "sql" },
+		capabilities = new { inventory = true, recipes = true, mealPlans = true, shopping = true, calendar = true, todos = true },
+		storage = new { planner = "sql", recipes = "sql", shopping = "sql", calendar = "sql", todos = "sql" },
 		auditLog = new
 		{
 			total = (int)(auditRow?.total ?? 0),
@@ -810,6 +816,40 @@ static async Task EnsureSchemaAsync(string connString)
 				ON [dbo].[AuditLog]([IdempotencyKey])
 				WHERE [IdempotencyKey] IS NOT NULL;
 		END;
+
+		IF OBJECT_ID('dbo.CalendarEvents', 'U') IS NULL
+		BEGIN
+			CREATE TABLE [dbo].[CalendarEvents]
+			(
+				[EventId]     INT            IDENTITY (1, 1) NOT NULL,
+				[Title]       NVARCHAR (200) NOT NULL,
+				[StartDate]   DATETIME2 (7)  NOT NULL,
+				[EndDate]     DATETIME2 (7)  NULL,
+				[AllDay]      BIT            NOT NULL CONSTRAINT [DF_CalendarEvents_AllDay]    DEFAULT (0),
+				[Description] NVARCHAR (1000) NULL,
+				[Category]    NVARCHAR (50)  NULL,
+				[Color]       NVARCHAR (20)  NULL,
+				[CreatedAt]   DATETIME2 (7)  NOT NULL CONSTRAINT [DF_CalendarEvents_CreatedAt] DEFAULT (SYSUTCDATETIME()),
+				CONSTRAINT [PK_CalendarEvents] PRIMARY KEY CLUSTERED ([EventId] ASC)
+			);
+		END;
+
+		IF OBJECT_ID('dbo.Todos', 'U') IS NULL
+		BEGIN
+			CREATE TABLE [dbo].[Todos]
+			(
+				[TodoId]      INT            IDENTITY (1, 1) NOT NULL,
+				[Title]       NVARCHAR (300) NOT NULL,
+				[Notes]       NVARCHAR (1000) NULL,
+				[DueDate]     DATE           NULL,
+				[ListName]    NVARCHAR (100) NOT NULL CONSTRAINT [DF_Todos_ListName]    DEFAULT (N'General'),
+				[Priority]    TINYINT        NOT NULL CONSTRAINT [DF_Todos_Priority]    DEFAULT (1),
+				[IsCompleted] BIT            NOT NULL CONSTRAINT [DF_Todos_IsCompleted] DEFAULT (0),
+				[CompletedAt] DATETIME2 (7)  NULL,
+				[CreatedAt]   DATETIME2 (7)  NOT NULL CONSTRAINT [DF_Todos_CreatedAt]   DEFAULT (SYSUTCDATETIME()),
+				CONSTRAINT [PK_Todos] PRIMARY KEY CLUSTERED ([TodoId] ASC)
+			);
+		END;
 	");
 }
 
@@ -1086,6 +1126,238 @@ app.MapPost("/shopping/bulk", async (ShoppingBulkDto dto) =>
 	return Results.Ok(new { accepted = dto.Items.Length, processed });
 });
 
+// ── Calendar endpoints ───────────────────────────────────────────────────────
+
+app.MapGet("/calendar", async (string? from, string? to) =>
+{
+	using var conn = new SqlConnection(connString);
+	if (!string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to))
+	{
+		var rows = await conn.QueryAsync(
+			"SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color, CreatedAt FROM dbo.CalendarEvents WHERE StartDate >= @From AND StartDate <= @To ORDER BY StartDate ASC",
+			new { From = DateTime.Parse(from), To = DateTime.Parse(to).AddDays(1).AddSeconds(-1) });
+		return Results.Ok(rows);
+	}
+	var all = await conn.QueryAsync("SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color, CreatedAt FROM dbo.CalendarEvents ORDER BY StartDate ASC");
+	return Results.Ok(all);
+});
+
+app.MapPost("/calendar", async (CalendarEventCreateDto dto) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (string.IsNullOrWhiteSpace(dto.Title))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/calendar", null, 400, "error");
+		return Results.BadRequest(new { error = "Title is required." });
+	}
+	if (dto.StartDate == default)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/calendar", null, 400, "error");
+		return Results.BadRequest(new { error = "StartDate is required." });
+	}
+
+	var id = await conn.ExecuteScalarAsync<int>(@"
+		INSERT INTO dbo.CalendarEvents (Title, StartDate, EndDate, AllDay, Description, Category, Color)
+		VALUES (@Title, @StartDate, @EndDate, @AllDay, @Description, @Category, @Color);
+		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		new
+		{
+			Title = dto.Title.Trim(),
+			dto.StartDate,
+			dto.EndDate,
+			AllDay = dto.AllDay,
+			Description = dto.Description?.Trim(),
+			Category = dto.Category?.Trim(),
+			Color = dto.Color?.Trim()
+		});
+
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/calendar", JsonSerializer.Serialize(new { dto.Title }), 201, "success");
+	return Results.Created($"/calendar/{id}", new { eventId = id, title = dto.Title.Trim() });
+});
+
+app.MapPut("/calendar/{id:int}", async (int id, CalendarEventUpdateDto dto) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	var existing = await conn.QueryFirstOrDefaultAsync(
+		"SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color FROM dbo.CalendarEvents WHERE EventId = @id", new { id });
+	if (existing is null)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/calendar/{id}", null, 404, "error");
+		return Results.NotFound(new { error = "Event not found." });
+	}
+
+	var title = dto.Title?.Trim() ?? (string)existing.Title;
+	var startDate = dto.StartDate ?? (DateTime)existing.StartDate;
+	var endDate = dto.EndDate ?? (DateTime?)existing.EndDate;
+	var allDay = dto.AllDay ?? (bool)existing.AllDay;
+	var description = dto.Description?.Trim() ?? (string?)existing.Description;
+	var category = dto.Category?.Trim() ?? (string?)existing.Category;
+	var color = dto.Color?.Trim() ?? (string?)existing.Color;
+
+	await conn.ExecuteAsync(@"
+		UPDATE dbo.CalendarEvents
+		SET Title = @Title, StartDate = @StartDate, EndDate = @EndDate, AllDay = @AllDay,
+		    Description = @Description, Category = @Category, Color = @Color
+		WHERE EventId = @id",
+		new { id, Title = title, StartDate = startDate, EndDate = endDate, AllDay = allDay, Description = description, Category = category, Color = color });
+
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/calendar/{id}", JsonSerializer.Serialize(new { title }), 204, "success");
+	return Results.NoContent();
+});
+
+app.MapDelete("/calendar/{id:int}", async (int id, string? idempotencyKey) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, idempotencyKey);
+	if (idem is not null) return idem;
+
+	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.CalendarEvents WHERE EventId = @id", new { id });
+	if (deleted == 0)
+	{
+		if (!string.IsNullOrWhiteSpace(idempotencyKey))
+			await LogAudit(conn, idempotencyKey, null, "DELETE", $"/calendar/{id}", null, 404, "error");
+		return Results.NotFound(new { error = "Event not found." });
+	}
+
+	await LogAudit(conn, idempotencyKey, null, "DELETE", $"/calendar/{id}", null, 204, "success");
+	return Results.NoContent();
+});
+
+// ── Todos endpoints ───────────────────────────────────────────────────────────
+
+app.MapGet("/todos", async (string? list, bool? completed) =>
+{
+	using var conn = new SqlConnection(connString);
+	var where = new List<string>();
+	if (!string.IsNullOrWhiteSpace(list)) where.Add("ListName = @ListName");
+	if (completed.HasValue) where.Add("IsCompleted = @IsCompleted");
+	var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
+	var rows = await conn.QueryAsync(
+		$"SELECT TodoId, Title, Notes, DueDate, ListName, Priority, IsCompleted, CompletedAt, CreatedAt FROM dbo.Todos {whereClause} ORDER BY IsCompleted ASC, Priority DESC, DueDate ASC, TodoId ASC",
+		new { ListName = list, IsCompleted = completed });
+	return Results.Ok(rows);
+});
+
+app.MapGet("/todos/lists", async () =>
+{
+	using var conn = new SqlConnection(connString);
+	var lists = await conn.QueryAsync<string>("SELECT DISTINCT ListName FROM dbo.Todos ORDER BY ListName ASC");
+	return Results.Ok(lists);
+});
+
+app.MapPost("/todos", async (TodoCreateDto dto) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	if (string.IsNullOrWhiteSpace(dto.Title))
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/todos", null, 400, "error");
+		return Results.BadRequest(new { error = "Title is required." });
+	}
+	var priority = dto.Priority is < 1 or > 3 ? (byte)1 : dto.Priority;
+
+	var id = await conn.ExecuteScalarAsync<int>(@"
+		INSERT INTO dbo.Todos (Title, Notes, DueDate, ListName, Priority)
+		VALUES (@Title, @Notes, @DueDate, @ListName, @Priority);
+		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		new
+		{
+			Title = dto.Title.Trim(),
+			Notes = dto.Notes?.Trim(),
+			DueDate = dto.DueDate.HasValue ? dto.DueDate.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null,
+			ListName = string.IsNullOrWhiteSpace(dto.ListName) ? "General" : dto.ListName.Trim(),
+			Priority = priority
+		});
+
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/todos", JsonSerializer.Serialize(new { dto.Title }), 201, "success");
+	return Results.Created($"/todos/{id}", new { todoId = id, title = dto.Title.Trim() });
+});
+
+app.MapPut("/todos/{id:int}", async (int id, TodoUpdateDto dto) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	var existing = await conn.QueryFirstOrDefaultAsync(
+		"SELECT TodoId, Title, Notes, DueDate, ListName, Priority FROM dbo.Todos WHERE TodoId = @id", new { id });
+	if (existing is null)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/todos/{id}", null, 404, "error");
+		return Results.NotFound(new { error = "Todo not found." });
+	}
+
+	var title = dto.Title?.Trim() ?? (string)existing.Title;
+	var notes = dto.Notes?.Trim() ?? (string?)existing.Notes;
+	var dueDate = dto.DueDate.HasValue ? dto.DueDate.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)existing.DueDate;
+	var listName = string.IsNullOrWhiteSpace(dto.ListName) ? (string)existing.ListName : dto.ListName.Trim();
+	var priority = dto.Priority.HasValue ? (dto.Priority.Value < 1 || dto.Priority.Value > 3 ? (byte)1 : dto.Priority.Value) : (byte)existing.Priority;
+
+	await conn.ExecuteAsync(@"
+		UPDATE dbo.Todos SET Title = @Title, Notes = @Notes, DueDate = @DueDate, ListName = @ListName, Priority = @Priority
+		WHERE TodoId = @id",
+		new { id, Title = title, Notes = notes, DueDate = dueDate, ListName = listName, Priority = priority });
+
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/todos/{id}", JsonSerializer.Serialize(new { title }), 204, "success");
+	return Results.NoContent();
+});
+
+app.MapPut("/todos/{id:int}/complete", async (int id, TodoCompleteDto dto) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	var existing = await conn.ExecuteScalarAsync<int?>("SELECT TodoId FROM dbo.Todos WHERE TodoId = @id", new { id });
+	if (existing is null)
+	{
+		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
+			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/todos/{id}/complete", null, 404, "error");
+		return Results.NotFound(new { error = "Todo not found." });
+	}
+
+	var isCompleted = dto.IsCompleted;
+	await conn.ExecuteAsync(@"
+		UPDATE dbo.Todos
+		SET IsCompleted = @IsCompleted, CompletedAt = CASE WHEN @IsCompleted = 1 THEN SYSUTCDATETIME() ELSE NULL END
+		WHERE TodoId = @id",
+		new { id, IsCompleted = isCompleted });
+
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/todos/{id}/complete", JsonSerializer.Serialize(new { isCompleted }), 204, "success");
+	return Results.NoContent();
+});
+
+app.MapDelete("/todos/{id:int}", async (int id, string? idempotencyKey) =>
+{
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, idempotencyKey);
+	if (idem is not null) return idem;
+
+	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.Todos WHERE TodoId = @id", new { id });
+	if (deleted == 0)
+	{
+		if (!string.IsNullOrWhiteSpace(idempotencyKey))
+			await LogAudit(conn, idempotencyKey, null, "DELETE", $"/todos/{id}", null, 404, "error");
+		return Results.NotFound(new { error = "Todo not found." });
+	}
+
+	await LogAudit(conn, idempotencyKey, null, "DELETE", $"/todos/{id}", null, 204, "success");
+	return Results.NoContent();
+});
+
 // ── Auth endpoints ──────────────────────────────────────────────────────────
 
 app.MapPost("/auth/register", async (AuthRegisterDto dto) =>
@@ -1309,5 +1581,10 @@ record AuthRegisterDto(string DisplayName, string Email, string Password);
 record AuthLoginDto(string Email, string Password);
 record UserRow(int UserId, string DisplayName, string Email, string PasswordHash, string Role);
 record SessionWithUser(int UserId, string DisplayName, string Email, string Role, DateTime ExpiresAt);
+record CalendarEventCreateDto(string Title, DateTime StartDate, DateTime? EndDate, bool AllDay, string? Description, string? Category, string? Color, string? IdempotencyKey = null, AuditDto? Audit = null);
+record CalendarEventUpdateDto(string? Title, DateTime? StartDate, DateTime? EndDate, bool? AllDay, string? Description, string? Category, string? Color, string? IdempotencyKey = null, AuditDto? Audit = null);
+record TodoCreateDto(string Title, string? Notes, DateOnly? DueDate, string? ListName, byte Priority, string? IdempotencyKey = null, AuditDto? Audit = null);
+record TodoUpdateDto(string? Title, string? Notes, DateOnly? DueDate, string? ListName, byte? Priority, string? IdempotencyKey = null, AuditDto? Audit = null);
+record TodoCompleteDto(bool IsCompleted, string? IdempotencyKey = null, AuditDto? Audit = null);
 
 public partial class Program { }

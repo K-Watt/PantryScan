@@ -189,6 +189,81 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items })
       });
+    },
+
+    // ── Calendar ──────────────────────────────────────────────────────────────
+
+    async fetchEvents(from, to) {
+      const qs = from && to ? `?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}` : '';
+      const res = await request(`/calendar${qs}`);
+      if (!res.ok) return null;
+      return await res.json();
+    },
+
+    async createEvent(dto) {
+      return await request('/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto)
+      });
+    },
+
+    async updateEvent(id, dto) {
+      return await request(`/calendar/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto)
+      });
+    },
+
+    async deleteEvent(id) {
+      return await request(`/calendar/${id}`, { method: 'DELETE' });
+    },
+
+    // ── Todos ─────────────────────────────────────────────────────────────────
+
+    async fetchTodos(list, completed) {
+      const params = new URLSearchParams();
+      if (list) params.set('list', list);
+      if (completed !== undefined && completed !== null) params.set('completed', completed);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await request(`/todos${qs}`);
+      if (!res.ok) return null;
+      return await res.json();
+    },
+
+    async fetchTodoLists() {
+      const res = await request('/todos/lists');
+      if (!res.ok) return [];
+      return await res.json();
+    },
+
+    async createTodo(dto) {
+      return await request('/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto)
+      });
+    },
+
+    async updateTodo(id, dto) {
+      return await request(`/todos/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto)
+      });
+    },
+
+    async completeTodo(id, isCompleted) {
+      return await request(`/todos/${id}/complete`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isCompleted })
+      });
+    },
+
+    async deleteTodo(id) {
+      return await request(`/todos/${id}`, { method: 'DELETE' });
     }
   };
 

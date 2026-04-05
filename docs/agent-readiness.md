@@ -28,6 +28,14 @@ This document describes current architecture and migration status to prepare Pan
    - `GET /agent/context` now includes `auditLog: { total, last24h }` summary.
    - Added missing `PUT /items/{id}` and `DELETE /items/{id}` endpoints.
    - Added missing `DELETE /recipes/{id}` endpoint.
+6. **Phase 6 (done)**: Calendar + Todos.
+   - Added `dbo.CalendarEvents` and `dbo.Todos` tables (auto-created on startup).
+   - Calendar endpoints: `GET /calendar`, `POST /calendar`, `PUT /calendar/{id}`, `DELETE /calendar/{id}`.
+   - Todos endpoints: `GET /todos`, `POST /todos`, `PUT /todos/{id}`, `PUT /todos/{id}/complete`, `DELETE /todos/{id}`, `GET /todos/lists`.
+   - `GET /agent/context` now includes `calendarEvents`, `todos`, and `openTodos` counts.
+   - `agent-data-service.js` extended with `fetchEvents`, `createEvent`, `updateEvent`, `deleteEvent`, `fetchTodos`, `createTodo`, `updateTodo`, `completeTodo`, `deleteTodo`, `fetchTodoLists`.
+   - New static pages: `calendar.html` (month-view grid) and `todos.html` (list-based with priorities/due dates).
+   - All existing page sidebars updated to include Calendar and Todos navigation links.
 
 ## Frontend Adapter
 `agent-data-service.js` now provides:
@@ -45,5 +53,4 @@ This keeps page UX unchanged while centralizing data-access seams for future age
 
 ## Remaining Before Real Agent Runtime
 - Add confirmation policy for destructive actions.
-- Phase 6: Calendar + Todos.
 - Phase 7: Hooks + automations.
