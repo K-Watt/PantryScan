@@ -111,7 +111,7 @@
     },
 
     async deleteMealPlanEntry(planDate, mealType, recipeName) {
-      const qs = new URLSearchParams({ planDate, mealType, recipeName });
+      const qs = new URLSearchParams({ planDate, mealType, recipeName, confirm: 'true' });
       return await request(`/meal-plans?${qs.toString()}`, { method: 'DELETE' });
     },
 
@@ -176,11 +176,11 @@
     },
 
     async deleteShoppingItem(clientId) {
-      return await request(`/shopping/items/${encodeURIComponent(clientId)}`, { method: 'DELETE' });
+      return await request(`/shopping/items/${encodeURIComponent(clientId)}?confirm=true`, { method: 'DELETE' });
     },
 
     async clearCheckedShoppingItems() {
-      return await request('/shopping/checked', { method: 'DELETE' });
+      return await request('/shopping/checked?confirm=true', { method: 'DELETE' });
     },
 
     async bulkCreateShoppingItems(items) {
@@ -217,7 +217,7 @@
     },
 
     async deleteEvent(id) {
-      return await request(`/calendar/${id}`, { method: 'DELETE' });
+      return await request(`/calendar/${id}?confirm=true`, { method: 'DELETE' });
     },
 
     // ── Todos ─────────────────────────────────────────────────────────────────
@@ -263,7 +263,7 @@
     },
 
     async deleteTodo(id) {
-      return await request(`/todos/${id}`, { method: 'DELETE' });
+      return await request(`/todos/${id}?confirm=true`, { method: 'DELETE' });
     }
   };
 

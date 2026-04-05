@@ -90,8 +90,9 @@ app.MapPut("/items/{id:int}", async (int id, ItemUpdateDto dto) =>
 	return Results.NoContent();
 });
 
-app.MapDelete("/items/{id:int}", async (int id, string? idempotencyKey) =>
+app.MapDelete("/items/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
+	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
@@ -229,6 +230,12 @@ app.MapGet("/agent/schema", () =>
 			note = "Write endpoints accept optional idempotencyKey and audit fields",
 			idempotencyKey = "string (UUID) — prevents duplicate writes on retry",
 			audit = new { actionId = "string", actor = "string", source = "string", requestedAtUtc = "ISO 8601 datetime" }
+		},
+		confirmationPolicy = new
+		{
+			note = "All DELETE endpoints require confirm=true as a query parameter",
+			example = "DELETE /items/5?confirm=true",
+			error = "Omitting confirm=true returns 400: { error: 'confirm=true is required for destructive operations.' }"
 		}
 	});
 });
@@ -405,8 +412,9 @@ app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
 	return Results.NoContent();
 });
 
-app.MapDelete("/recipes/{id:int}", async (int id, string? idempotencyKey) =>
+app.MapDelete("/recipes/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
+	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
@@ -615,8 +623,9 @@ app.MapPost("/meal-plans/bulk", async (MealPlanBulkCreateDto dto) =>
 	return Results.Ok(new { accepted = dto.Entries.Length, processed });
 });
 
-app.MapDelete("/meal-plans", async (string planDate, string mealType, string recipeName, string? idempotencyKey) =>
+app.MapDelete("/meal-plans", async (string planDate, string mealType, string recipeName, bool? confirm, string? idempotencyKey) =>
 {
+	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
@@ -1050,8 +1059,9 @@ app.MapPut("/shopping/items/{clientId}/check", async (string clientId, ShoppingC
 	return Results.NoContent();
 });
 
-app.MapDelete("/shopping/items/{clientId}", async (string clientId, string? idempotencyKey) =>
+app.MapDelete("/shopping/items/{clientId}", async (string clientId, bool? confirm, string? idempotencyKey) =>
 {
+	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
@@ -1071,8 +1081,9 @@ app.MapDelete("/shopping/items/{clientId}", async (string clientId, string? idem
 	return Results.NoContent();
 });
 
-app.MapDelete("/shopping/checked", async (string? idempotencyKey) =>
+app.MapDelete("/shopping/checked", async (bool? confirm, string? idempotencyKey) =>
 {
+	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
@@ -1214,8 +1225,9 @@ app.MapPut("/calendar/{id:int}", async (int id, CalendarEventUpdateDto dto) =>
 	return Results.NoContent();
 });
 
-app.MapDelete("/calendar/{id:int}", async (int id, string? idempotencyKey) =>
+app.MapDelete("/calendar/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
+	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
@@ -1340,8 +1352,9 @@ app.MapPut("/todos/{id:int}/complete", async (int id, TodoCompleteDto dto) =>
 	return Results.NoContent();
 });
 
-app.MapDelete("/todos/{id:int}", async (int id, string? idempotencyKey) =>
+app.MapDelete("/todos/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
+	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;

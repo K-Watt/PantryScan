@@ -102,24 +102,25 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 3 — Shopping API Migration 🔲 Next
-**What you'll build:**
-- Move shopping list from `localStorage` to a real SQL table (`dbo.ShoppingItems`)
-- Add `GET /shopping`, `POST /shopping`, `DELETE /shopping/{id}` endpoints
-- Migrate the frontend to use the new API
-- Update `/grocery-list` to write directly to the shopping API
+### Phase 3 — Shopping API Migration ✅ Done
+**What you built:**
+- `dbo.ShoppingItems` SQL table with clientId, name, qty, category, store, note, recipesJson, isChecked
+- `GET /shopping`, `POST /shopping/items`, `PUT /shopping/items/{id}/check`, `DELETE /shopping/items/{id}`, `DELETE /shopping/checked`, `POST /shopping/bulk`
+- Frontend migration: on boot, `shopping.html` migrates any localStorage data to the API, then loads from SQL as source of truth
+- `/grocery-list` slash command writes directly to the shopping API
 
-**What you'll learn:** Why data that lives only in the browser is invisible to agents. An agent can only work with data it can read and write — `localStorage` is a dead end. This phase makes shopping a real, shared, agent-accessible resource.
+**What you learned:** Why data that lives only in the browser is invisible to agents. An agent can only work with data it can read and write — `localStorage` is a dead end. This phase makes shopping a real, shared, agent-accessible resource.
 
 ---
 
-### Phase 4 — Idempotency & Audit Trail 🔲 Upcoming
-**What you'll build:**
-- API handlers enforce `idempotencyKey` to prevent duplicate writes on retry
-- A `dbo.AuditLog` table records every write operation (action id, actor, timestamp, outcome)
-- Confirmation policy: any `DELETE` endpoint requires an explicit `confirm: true` flag in the request
+### Phase 4 — Idempotency & Audit Trail ✅ Done
+**What you built:**
+- All write endpoints accept an optional `idempotencyKey` (UUID) — duplicate keys return `{ idempotent: true }` instead of re-executing
+- `dbo.AuditLog` table records every write: method, endpoint, actor, outcome, timestamp
+- Confirmation policy: every `DELETE` endpoint requires `?confirm=true` — omitting it returns `400` with a clear error
+- `GET /agent/schema` documents the `writeEnvelope` and new `confirmationPolicy` for agents
 
-**What you'll learn:** What makes an API *safe for automation*. When a human makes a mistake, they notice. When an agent makes a mistake at 3am in a loop, it might make it 500 times. Idempotency and audit trails are how you build systems that are safe to automate.
+**What you learned:** What makes an API *safe for automation*. When a human makes a mistake, they notice. When an agent makes a mistake at 3am in a loop, it might make it 500 times. Idempotency and audit trails are how you build systems that are safe to automate.
 
 ---
 
@@ -130,9 +131,10 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
   1. Reads the selected date range
   2. Reads available recipes and pantry inventory
   3. Generates a draft meal plan using sensible defaults
-  4. Presents the draft to the user — each slot can be accepted, rejected, or swapped
-  5. Rejected slots trigger a new AI suggestion for that slot only
-  6. Confirmed slots are written to the meal plan API
+  4. Gives the option to add items to shopping list that aren't in current inventory. 
+  5. Presents the draft to the user — each slot can be accepted, rejected, or swapped
+  6. Rejected slots trigger a new AI suggestion for that slot only
+  7. Confirmed slots are written to the meal plan API
 - Also builds the `/plan-and-shop` command:
   1. Reads the confirmed meal plan
   2. Extracts required ingredients from each recipe
