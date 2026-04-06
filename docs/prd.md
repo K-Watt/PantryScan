@@ -10,6 +10,8 @@ PantryScan is a private, family-facing web application for managing the home kit
 
 A secondary goal runs alongside the build: use this project as a hands-on learning environment for modern AI development — agents, tool use, MCP servers, automations,and multi-step workflows — by wiring real AI capabilities into the app at each phase.
 
+> **Note on the home page:** The pantry inventory (`index.html`) is the current default landing page — a practical starting point, not the intended final experience. The long-term home page will be an AI-powered smart dashboard that greets the family with personalized meal suggestions based on pantry state, item freshness, cost, and a household preference profile. See Phase 11.
+
 ---
 
 ## 2. Problem Statement
@@ -218,6 +220,20 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
+### Phase 11 — Smart Home Dashboard 🔲 Future
+**What you'll build:**
+- A new `home.html` that becomes the app's default landing page, replacing the pantry page as the root
+- On load, the page displays AI-generated meal suggestions personalized to the household's current state
+- Suggestions factor in: pantry contents, items nearing expiration, ingredient cost/value, and a household preference profile (parameters TBD — see Open Questions)
+- A custom AI instruction set — a "household preference profile" — shapes the suggestion logic: dietary preferences, budget targets, cuisine variety goals, cook time constraints, and more
+- The pantry inventory page moves to a secondary nav item; it is no longer the root of the app
+
+**What you'll learn:** What a truly personalized AI surface looks like — not just "generate something from data," but "generate something shaped by persistent, structured household preferences." The preference profile is your first real example of *instructable AI behavior*: changing what the model does without changing the model itself. This is the same pattern used in AI products that let users customize assistant tone, priorities, and constraints.
+
+**Note:** The full set of parameters for the household preference profile is TBD. A dedicated scoping session (quiz) will define them before this phase begins.
+
+---
+
 ## 7. Technical Architecture
 
 > **What this section does:** Records the *why* behind tech choices so future-you doesn't wonder "why didn't we just use React?" This isn't a full spec — just the key decisions and their rationale.
@@ -275,6 +291,7 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 - **Rejected slot behavior:** When a user rejects a suggested meal, should the AI explain why it suggested it and ask for feedback, or just silently offer a new option?
 - **Google Calendar scope:** Read-only access to event titles/times is enough for busy-day detection — but do we want to write meal plan events back to Google Calendar as well?
 - **Expiration memory storage:** When the AI builds a model of average shelf life per food type, where does that data live? A new SQL table? Embedded in the semantic layer? This needs a design decision before Phase 10.
+- **Smart Home Dashboard parameters:** What signals should drive meal suggestions on the home page? Pantry contents and expiration are confirmed inputs; price/cost awareness, dietary preferences, cuisine variety targets, cook time ceilings, and others are TBD — to be explored in a dedicated scoping session before Phase 11 begins.
 
 ---
 
@@ -286,3 +303,4 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 |------|--------|
 | 2026-03-28 | Initial draft |
 | 2026-03-28 | Added AI meal planner feature (Phase 5, 5.5, Google Calendar, expiration-aware planning); expanded success criteria and open questions |
+| 2026-04-05 | Added Smart Home Dashboard vision (Phase 11); noted pantry page as temporary home; added open question for home page parameters |

@@ -2469,7 +2469,9 @@
       document.getElementById('iSourceHost').value  = data.source      || '';
       document.getElementById('iServings').value    = data.servings    || '';
       document.getElementById('iTags').value        = (data.tags        || []).join(', ');
-      document.getElementById('iIngredients').value = (data.ingredients || []).join('\n');
+      document.getElementById('iIngredients').value = (data.ingredients || []).map(i =>
+        (i && typeof i === 'object') ? [i.amount, i.name].filter(Boolean).join(' ') : String(i)
+      ).join('\n');
       document.getElementById('iSteps').value       = (data.steps       || []).join('\n');
     }
     async function saveImportedRecipe(e) {
@@ -2778,7 +2780,15 @@
 
     function parseIngredientsToRows(ingredients) {
       return (ingredients || []).map(ing => {
-        const s = ing.trim();
+        if (ing && typeof ing === 'object') {
+          // {name, amount} shape from API
+          const amountStr = ing.amount || '';
+          const parts = amountStr.trim().split(/\s+/);
+          const unit = parts.length >= 2 ? parts[1] : '';
+          const amount = parts[0] || '';
+          return { amount, unit, ingredient: ing.name || '', notes: '' };
+        }
+        const s = String(ing).trim();
         const parts = s.split(/\s+/);
         if (parts.length >= 3 && /^[\d½¼¾⅓⅔⅛⅜⅝⅞\/\.]+$/.test(parts[0])) {
           return { amount: parts[0], unit: parts[1], ingredient: parts.slice(2).join(' '), notes: '' };
@@ -2951,7 +2961,13 @@
         : `<span class="detail-empty">No tags</span>`;
 
       const ingredientsHTML = (r.ingredients && r.ingredients.length)
-        ? `<ul class="detail-list">${r.ingredients.map(i => `<li>${escHtml(i)}</li>`).join('')}</ul>`
+        ? `<ul class="detail-list">${r.ingredients.map(i => {
+            if (i && typeof i === 'object') {
+              const parts = [i.amount, i.name].filter(Boolean);
+              return `<li>${escHtml(parts.join(' '))}</li>`;
+            }
+            return `<li>${escHtml(String(i))}</li>`;
+          }).join('')}</ul>`
         : `<span class="detail-empty">No ingredients listed</span>`;
 
       const stepsHTML = (r.steps && r.steps.length)

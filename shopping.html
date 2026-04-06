@@ -309,6 +309,109 @@
     ::-webkit-scrollbar-thumb:hover { background:rgba(59,130,246,.55); }
 
     @media(max-width:700px) { .sidebar{ display:none; } }
+
+    /* ════════════════ RECIPE DETAIL OVERLAY ════════════════ */
+    .detail-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.72); backdrop-filter: blur(5px);
+      z-index: 400; align-items: center; justify-content: center; padding: 20px;
+    }
+    .detail-overlay.open { display: flex; }
+
+    .detail-panel {
+      background: linear-gradient(160deg, #0d1829, #111827);
+      border: 1px solid rgba(59,130,246,0.3); border-radius: 18px;
+      width: 100%; max-width: 900px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+      animation: slideUp 0.25s ease;
+      scrollbar-width: thin; scrollbar-color: rgba(59,130,246,0.3) transparent;
+    }
+    .detail-panel-header {
+      position: sticky; top: 0; z-index: 1;
+      background: linear-gradient(160deg, #0d1829, #111827);
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; gap: 12px;
+    }
+    .detail-close-btn {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px; color: #9ca3af; font-size: 1rem;
+      width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background 0.2s, color 0.2s; flex-shrink: 0;
+    }
+    .detail-close-btn:hover { background: rgba(239,68,68,0.2); color: #f87171; }
+    .detail-panel-title {
+      flex: 1; font-size: 1.15rem; font-weight: 700; color: #e5e7eb;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .detail-body { padding: 20px 24px 28px; display: flex; flex-direction: column; gap: 20px; }
+    .detail-meta-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .detail-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(30,64,175,0.2); border: 1px solid rgba(59,130,246,0.2);
+      border-radius: 8px; padding: 5px 11px; font-size: 0.82rem; color: #7dd3fc;
+    }
+    .detail-section { display: flex; flex-direction: column; gap: 8px; }
+    .detail-label {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: rgba(147,197,253,0.55);
+    }
+    .detail-stars-row { display: flex; gap: 4px; align-items: center; }
+    .detail-star { font-size: 1.5rem; line-height: 1; }
+    .detail-star.lit { color: #f59e0b; }
+    .detail-star.dim { color: rgba(255,255,255,0.2); }
+    .detail-list {
+      list-style: none; padding: 0; margin: 0;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .detail-list li {
+      padding: 8px 12px; background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;
+      color: #d1d5db; font-size: 0.9rem; line-height: 1.45;
+    }
+    ol.detail-list { counter-reset: step; }
+    ol.detail-list li { display: flex; gap: 10px; }
+    ol.detail-list li::before {
+      content: counter(step); counter-increment: step;
+      background: rgba(59,130,246,0.25); color: #93c5fd; border-radius: 50%;
+      min-width: 22px; height: 22px; display: flex; align-items: center;
+      justify-content: center; font-size: 0.75rem; font-weight: 700;
+      flex-shrink: 0; margin-top: 1px;
+    }
+    .detail-tags-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .detail-empty { color: rgba(147,197,253,0.35); font-size: 0.85rem; font-style: italic; }
+    .detail-edit-layout { display: flex; gap: 24px; align-items: flex-start; }
+    .detail-edit-left { flex: 1 1 52%; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+    .detail-edit-right { flex: 1 1 48%; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+    @media (max-width: 640px) { .detail-edit-layout { flex-direction: column; } }
+    .detail-img-box {
+      position: relative; background: rgba(30,64,175,0.1);
+      border: 1px dashed rgba(59,130,246,0.3); border-radius: 12px;
+      height: 200px; overflow: hidden; display: flex;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 8px;
+      color: rgba(147,197,253,0.35); font-size: 0.82rem;
+    }
+    .detail-img-box .ph-icon { font-size: 2.4rem; }
+    .detail-img-box img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 999px; padding: 3px 9px; font-size: 0.76rem; color: #93c5fd;
+    }
+    .tag .tag-icon { font-size: 0.7rem; }
+
+    /* ── Recipe checkbox in sidebar ── */
+    .recipe-entry-check {
+      width: 14px; height: 14px; accent-color: #3b82f6; cursor: pointer; flex-shrink: 0;
+    }
+
+    /* ── Auto-generated item badge ── */
+    .plan-tag {
+      font-size:.65rem; background:rgba(59,130,246,.12);
+      border:1px solid rgba(59,130,246,.2); border-radius:4px;
+      padding:1px 5px; color:rgba(147,197,253,.55); white-space:nowrap;
+    }
   </style>
 </head>
 <body>
@@ -412,6 +515,7 @@
     <div class="action-bar">
       <div class="action-bar-left">
         <button class="btn-add-item" onclick="openAddModal()">＋ Add Items</button>
+        <button class="btn-ghost"    onclick="regenerateFromPlan()">♻ Regenerate from Plan</button>
         <button class="btn-ghost"    onclick="resetChecked()">↺ Reset List</button>
         <button class="btn-ghost"    onclick="openStoreModal()">🏪 Stores</button>
         <button class="btn-ghost"    onclick="openCatModal()">🗂 Categories</button>
@@ -547,6 +651,7 @@ function badgeColor(idx){ return BADGE_COLORS[idx % BADGE_COLORS.length]; }
    State
 ════════════════════════════════════════════ */
 let sortMode    = 'date';
+let disabledRecipes = new Set();  // recipe names whose items are hidden
 let shop        = loadShop();
 let plannedMap  = {};   // { recipeName -> { letter, superscript, dateStr }[] }
 let letterMap   = {};   // { 'A' -> recipeName, 'B' -> ... }
@@ -580,8 +685,85 @@ function applyRange(){
   shop.dateStart = s; shop.dateEnd = e;
   saveShop(shop);
   buildPlannedMap();
+  regenerateFromPlan(); // async; handles renderSidebar + renderList
+}
+
+/* ════════════════════════════════════════════
+   Ingredient parsing
+════════════════════════════════════════════ */
+function parseIngredient(raw){
+  if(!raw) return { name:'', qty:'' };
+  if(typeof raw === 'object'){
+    const name = raw.ingredient || raw.name || '';
+    const qty  = [raw.amount, raw.unit].filter(Boolean).join(' ').trim();
+    return { name: String(name).trim(), qty };
+  }
+  return { name: String(raw).trim(), qty: '' };
+}
+
+/* ════════════════════════════════════════════
+   Regenerate shopping list from plan
+════════════════════════════════════════════ */
+async function regenerateFromPlan(){
+  console.log('[regen] start — plannedMap keys:', Object.keys(plannedMap));
+
+  // Use local recipe cache (same source the planner uses for drag-and-drop)
+  // Fall back to API only if local cache is empty, normalizing PascalCase columns
+  let allRecipes = agentData.loadLocalRecipes ? (agentData.loadLocalRecipes() || []) : [];
+  console.log('[regen] local cache recipes:', allRecipes.length);
+  if (!allRecipes.length) {
+    try {
+      const fetched = await agentData.fetchRecipes();
+      allRecipes = (fetched || []).map(r => {
+        const rawIng = r.ingredients ?? r.ingredientsJson ?? r.IngredientsJson ?? '[]';
+        return {
+          name: r.name ?? r.Name ?? r.title ?? r.Title ?? '',
+          ingredients: typeof rawIng === 'string' ? JSON.parse(rawIng) : rawIng,
+        };
+      });
+      console.log('[regen] API fallback recipes:', allRecipes.length);
+    } catch(e) {
+      console.warn('[regen] API fallback failed', e);
+    }
+  }
+
+  // Remove old plan items — identified by flag OR id prefix (covers items fetched from API)
+  const isPlanItem = it => it.fromPlan || String(it.id || '').startsWith('plan_');
+  const removedIds = (shop.items || []).filter(isPlanItem).map(it => it.id);
+  console.log('[regen] removing', removedIds.length, 'old plan items');
+  shop.items = (shop.items || []).filter(it => !isPlanItem(it));
+  removedIds.forEach(id => { delete shop.checked[id]; agentData.deleteShoppingItem(id).catch(()=>{}); });
+
+  // Generate new items from each planned recipe's ingredients
+  const newItems = [];
+  Object.keys(plannedMap).forEach(recipeName => {
+    const rec = allRecipes.find(r => (r.name || r.title) === recipeName);
+    if(!rec){ console.warn('[regen] recipe not found in library:', recipeName); return; }
+    const ingredients = rec.ingredients || [];
+    console.log('[regen]', recipeName, '→', ingredients.length, 'ingredients');
+    ingredients.forEach(raw => {
+      const { name, qty } = parseIngredient(raw);
+      if(!name) return;
+      const id = 'plan_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+      newItems.push({ id, name, qty, category:'Other', store:'', note:'', recipes:[recipeName], fromPlan:true });
+    });
+  });
+
+  console.log('[regen] adding', newItems.length, 'new items');
+  shop.items = [...shop.items, ...newItems];
+  saveShop(shop);
+
+  // Bulk sync to API (best-effort)
+  if(newItems.length){
+    agentData.bulkCreateShoppingItems(newItems.map(it => ({
+      clientId: it.id, name: it.name, qty: it.qty || '',
+      category: 'Other', store: '', note: '', recipes: it.recipes, fromPlan: true
+    }))).catch(()=>{});
+  }
+
   renderSidebar();
   renderList();
+  console.log('[regen] done — total shop items:', shop.items.length);
 }
 
 /* ════════════════════════════════════════════
@@ -705,14 +887,26 @@ function renderSidebar(){
 }
 
 function rowHTML(e){
-  const isHL = highlightLetter === e.key;
+  const isHL      = highlightLetter === e.key;
+  const isEnabled = !disabledRecipes.has(e.name);
   return `<div class="recipe-entry" onclick="toggleHighlight('${escA(e.key)}')"
-               style="${isHL?'background:rgba(59,130,246,.15);':''}" >
+               style="${isHL?'background:rgba(59,130,246,.15);':''}">
+    <input type="checkbox" class="recipe-entry-check"
+           ${isEnabled?'checked':''}
+           onclick="event.stopPropagation()"
+           onchange="toggleRecipeDisabled('${escA(e.name)}')" />
     <span class="recipe-badge" style="color:${e.color}">
       ${e.letter}<sup>${e.sup}</sup>
     </span>
-    <span class="recipe-entry-name ${isHL?'highlighted':''}">${escH(e.name)}</span>
+    <span class="recipe-entry-name ${isHL?'highlighted':''}"
+          onclick="event.stopPropagation(); openRecipeOverlay('${escA(e.name)}')">${escH(e.name)}</span>
   </div>`;
+}
+
+function toggleRecipeDisabled(name){
+  if(disabledRecipes.has(name)) disabledRecipes.delete(name);
+  else disabledRecipes.add(name);
+  renderList();
 }
 
 function toggleHighlight(key){
@@ -720,6 +914,106 @@ function toggleHighlight(key){
   renderSidebar();
   renderList();
 }
+
+/* ════════════════════════════════════════════
+   Recipe detail overlay (read-only)
+════════════════════════════════════════════ */
+async function openRecipeOverlay(recipeName){
+  // Use local recipe cache (same source as planner) — has full recipe objects
+  let allRecipes = agentData.loadLocalRecipes ? (agentData.loadLocalRecipes() || []) : [];
+  const r = allRecipes.find(x => (x.name||x.title) === recipeName);
+  if(!r) return;
+  const panel = document.getElementById('recipeDetailPanel');
+  panel.innerHTML = buildRecipeOverlayHTML(r);
+  document.getElementById('recipeDetailOverlay').classList.add('open');
+}
+
+function buildRecipeOverlayHTML(r){
+  const name = r.name || r.title || 'Recipe';
+  const metaHTML = `
+    <div class="detail-meta-row">
+      ${r.course   ? `<span class="detail-badge">📂 ${escH(r.course)}</span>`   : ''}
+      ${r.cuisine  ? `<span class="detail-badge">🌍 ${escH(r.cuisine)}</span>`  : ''}
+      ${r.servings ? `<span class="detail-badge">🍽️ ${escH(r.servings)} servings</span>` : ''}
+      ${r.source   ? `<span class="detail-badge">🔗 ${escH(r.source)}</span>`   : ''}
+    </div>`;
+
+  const tagsHTML = (r.tags && r.tags.length)
+    ? `<div class="detail-tags-row">${r.tags.map(t=>`<span class="tag"><span class="tag-icon">♦</span>${escH(t)}</span>`).join('')}</div>`
+    : `<span class="detail-empty">No tags</span>`;
+
+  const ingList = r.ingredients || [];
+  const ingredientsHTML = ingList.length
+    ? `<ul class="detail-list">${ingList.map(i => {
+        if(i && typeof i === 'object'){
+          const parts = [i.amount, i.unit, i.ingredient || i.name].filter(Boolean);
+          return `<li>${escH(parts.join(' '))}</li>`;
+        }
+        return `<li>${escH(String(i))}</li>`;
+      }).join('')}</ul>`
+    : `<span class="detail-empty">No ingredients listed</span>`;
+
+  const stepList = r.steps || [];
+  const stepsHTML = stepList.length
+    ? `<ol class="detail-list">${stepList.map(s=>`<li><span>${escH(typeof s==='object'?(s.text||s.step||JSON.stringify(s)):String(s))}</span></li>`).join('')}</ol>`
+    : `<span class="detail-empty">No steps listed</span>`;
+
+  const rating = r.rating || 0;
+  const starsHTML = Array.from({length:5},(_,i)=>
+    `<span class="detail-star ${i<rating?'lit':'dim'}">★</span>`
+  ).join('');
+
+  const imageHTML = r.imageUrl
+    ? `<div class="detail-img-box"><img src="${escH(r.imageUrl)}" alt="${escH(name)}" /></div>`
+    : `<div class="detail-img-box"><span class="ph-icon">🍽️</span><span>No image</span></div>`;
+
+  const commentsHTML = r.comments
+    ? `<p style="color:#d1d5db;font-size:.9rem;line-height:1.6;white-space:pre-wrap;">${escH(r.comments)}</p>`
+    : `<span class="detail-empty">No notes</span>`;
+
+  return `
+    <div class="detail-panel-header">
+      <div class="detail-panel-title">${escH(name)}</div>
+      <button class="detail-close-btn" onclick="closeRecipeOverlay()">✕</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-edit-layout">
+        <div class="detail-edit-left">
+          ${metaHTML}
+          <div class="detail-section">
+            <div class="detail-label">Tags</div>
+            ${tagsHTML}
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">Ingredients</div>
+            ${ingredientsHTML}
+          </div>
+        </div>
+        <div class="detail-edit-right">
+          ${imageHTML}
+          <div class="detail-section">
+            <div class="detail-label">Rating</div>
+            <div class="detail-stars-row">${starsHTML}</div>
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">Directions</div>
+            ${stepsHTML}
+          </div>
+          <div class="detail-section">
+            <div class="detail-label">Comments / Prep Notes</div>
+            ${commentsHTML}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function closeRecipeOverlay(){
+  document.getElementById('recipeDetailOverlay').classList.remove('open');
+  document.getElementById('recipeDetailPanel').innerHTML = '';
+}
+
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeRecipeOverlay(); });
 
 /* ════════════════════════════════════════════
    Shopping list render
@@ -749,6 +1043,15 @@ function renderList(){
   if(highlightLetter){
     const targetName = letterMap[highlightLetter];
     items = items.filter(it => (it.recipes||[]).includes(targetName));
+  }
+
+  // hide items whose recipes are all disabled
+  if(disabledRecipes.size > 0){
+    items = items.filter(it => {
+      const r = it.recipes || [];
+      if(!r.length) return true; // unassigned items always show
+      return r.some(rName => !disabledRecipes.has(rName));
+    });
   }
 
   // hide checked
@@ -825,7 +1128,7 @@ function itemRowHTML(it){
            onchange="toggleCheck('${it.id}',this.checked)" />
     <span class="item-name">${escH(it.name)}</span>
     ${it.qty ? `<span class="item-qty">${escH(it.qty)}</span>` : ''}
-    <div class="item-badges">${badges}</div>
+    <div class="item-badges">${badges}${it.fromPlan?'<span class="plan-tag">auto</span>':''}</div>
     ${noteHtml}
     <button class="item-del-btn" onclick="deleteItem('${it.id}')" title="Remove">✕</button>
   </div>`;
@@ -930,7 +1233,7 @@ buildPlannedMap();
 renderSidebar();
 renderList();
 
-// Async: one-time migration + load from SQL
+// Async: one-time migration + load from SQL, then auto-populate from plan
 (async () => {
   try {
     const localShop = agentData.loadShopping();
@@ -952,12 +1255,22 @@ renderList();
     }
     const apiShop = await agentData.fetchShopping();
     if (apiShop) {
-      shop.items = apiShop.items || [];
+      // Re-annotate fromPlan based on clientId prefix (API doesn't store this flag)
+      shop.items = (apiShop.items || []).map(it => ({
+        ...it,
+        fromPlan: String(it.id || '').startsWith('plan_')
+      }));
       shop.checked = apiShop.checked || {};
       agentData.saveShopping(shop);
       renderList();
     }
   } catch (_) { /* keep local data on API failure */ }
+
+  // Auto-populate from plan on first load if no plan items exist yet
+  const hasExistingPlanItems = (shop.items || []).some(it => it.fromPlan || String(it.id || '').startsWith('plan_'));
+  if (!hasExistingPlanItems && Object.keys(plannedMap).length > 0) {
+    await regenerateFromPlan();
+  }
 })();
 
 window.addEventListener('storage', e => {
@@ -1006,6 +1319,13 @@ window.addEventListener('storage', e => {
       });
     })();
   </script>
+
+<!-- Recipe Detail Overlay -->
+<div class="detail-overlay" id="recipeDetailOverlay" onclick="closeRecipeOverlay()">
+  <div class="detail-panel" id="recipeDetailPanel" onclick="event.stopPropagation()">
+  </div>
+</div>
+
 </main>
 </body>
 </html>
