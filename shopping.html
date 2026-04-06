@@ -751,6 +751,7 @@ async function regenerateFromPlan(){
   removedIds.forEach(id => { delete shop.checked[id]; agentData.deleteShoppingItem(id).catch(()=>{}); });
 
   // Generate new items from each planned recipe's ingredients
+  const deletedNames = new Set((shop.deletedNames||[]).map(n=>n.toLowerCase().trim()));
   const newItems = [];
   Object.keys(plannedMap).forEach(recipeName => {
     const rec = allRecipes.find(r => (r.name || r.title) === recipeName);
@@ -760,6 +761,7 @@ async function regenerateFromPlan(){
     ingredients.forEach(raw => {
       const { name, qty } = parseIngredient(raw);
       if(!name) return;
+      if(deletedNames.has(name.toLowerCase().trim())) return; // user deleted this item
       const id = 'plan_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
       newItems.push({ id, name, qty, category:'Other', store:'', note:'', recipes:[recipeName], fromPlan:true });
     });
@@ -1080,7 +1082,7 @@ function renderList(){
   const groupStore  = document.getElementById('tGroupStore').checked;
   const el          = document.getElementById('listScroll');
 
-  let items = shop.items || [];
+  let items = (shop.items || []).filter(it => !(shop.deleted||{})[it.id]);
 
   // filter by highlight
   if(highlightLetter){
@@ -1203,7 +1205,14 @@ function toggleCheck(id, val){
 }
 
 function deleteItem(id){
-  shop.items = (shop.items||[]).filter(it=>it.id!==id);
+  if(!shop.deleted) shop.deleted = {};
+  if(!shop.deletedNames) shop.deletedNames = [];
+  const item = (shop.items||[]).find(it => it.id === id);
+  if(item){
+    const norm = String(item.name).toLowerCase().trim();
+    if(!shop.deletedNames.includes(norm)) shop.deletedNames.push(norm);
+  }
+  shop.deleted[id] = true;
   delete shop.checked[id];
   saveShop(shop);
   agentData.deleteShoppingItem(id).catch(() => {});
@@ -1212,6 +1221,8 @@ function deleteItem(id){
 
 function resetChecked(){
   shop.checked = {};
+  shop.deleted = {};
+  shop.deletedNames = [];
   saveShop(shop);
   agentData.clearCheckedShoppingItems().catch(() => {});
   renderList();
