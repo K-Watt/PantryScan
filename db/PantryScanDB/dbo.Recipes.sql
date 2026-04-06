@@ -9,6 +9,7 @@ CREATE TABLE [dbo].[Recipes]
     [Rating]         INT CONSTRAINT [DF_Recipes_Rating] DEFAULT (0) NOT NULL,
     [AddedAt]        DATETIME2 (7) NULL,
     [Servings]       INT NULL,
+    [CookMinutes]    INT NULL,
     [IngredientsJson] NVARCHAR (MAX) NOT NULL,
     [StepsJson]      NVARCHAR (MAX) NOT NULL,
     [Comments]       NVARCHAR (MAX) NULL,

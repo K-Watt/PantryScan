@@ -83,6 +83,9 @@
     .ps-sort {
       display:flex; align-items:center; gap:4px; font-size:.75rem; color:rgba(147,197,253,.5);
     }
+    .ps-filter {
+      display:flex; align-items:center; gap:4px; font-size:.75rem; color:rgba(147,197,253,.5); margin-top:4px; flex-wrap:wrap;
+    }
     .sort-btn {
       background:none; border:none; color:rgba(147,197,253,.5); font-size:.75rem; font-weight:700;
       cursor:pointer; padding:1px 4px; border-radius:4px; transition: color .15s, background .15s;
@@ -502,6 +505,18 @@
           <span class="sort-div">|</span>
           <button class="sort-btn" id="sortAZ"   onclick="setSortMode('az')">A-Z</button>
         </div>
+        <div class="ps-filter">
+          Filter:
+          <button class="sort-btn active" id="filterAll"       onclick="setFilterMode('all')">ALL</button>
+          <span class="sort-div">|</span>
+          <button class="sort-btn"        id="filterBreakfast" onclick="setFilterMode('Breakfast')">BKFST</button>
+          <span class="sort-div">|</span>
+          <button class="sort-btn"        id="filterLunch"     onclick="setFilterMode('Lunch')">LUNCH</button>
+          <span class="sort-div">|</span>
+          <button class="sort-btn"        id="filterDinner"    onclick="setFilterMode('Dinner')">DINNER</button>
+          <span class="sort-div">|</span>
+          <button class="sort-btn"        id="filterSnacks"    onclick="setFilterMode('Snacks')">SNACKS</button>
+        </div>
       </div>
       <div id="plannedList"></div>
     </div>
@@ -651,6 +666,7 @@ function badgeColor(idx){ return BADGE_COLORS[idx % BADGE_COLORS.length]; }
    State
 ════════════════════════════════════════════ */
 let sortMode    = 'date';
+let filterMeal  = 'all';
 let disabledRecipes = new Set();  // recipe names whose items are hidden
 let shop        = loadShop();
 let plannedMap  = {};   // { recipeName -> { letter, superscript, dateStr }[] }
@@ -829,6 +845,28 @@ function setSortMode(m){
   renderSidebar();
 }
 
+function setFilterMode(m){
+  if(m === 'all' && filterMeal === 'all'){
+    // Toggle: if any recipe is disabled → re-enable all; otherwise → disable all
+    const allNames = Object.keys(plannedMap);
+    if(disabledRecipes.size > 0){
+      disabledRecipes.clear();
+    } else {
+      allNames.forEach(n => disabledRecipes.add(n));
+    }
+    renderSidebar();
+    renderList();
+    return;
+  }
+  filterMeal = m;
+  ['All','Breakfast','Lunch','Dinner','Snacks'].forEach(label => {
+    const id = 'filter' + label;
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('active', (m === 'all' ? 'All' : m) === label);
+  });
+  renderSidebar();
+}
+
 function renderSidebar(){
   const plan   = loadPlan();
   const start  = document.getElementById('rangeStart').value;
@@ -851,16 +889,21 @@ function renderSidebar(){
           Object.keys(plannedMap).map((n,i)=>[n,i])
         )).indexOf(name);
         entries.push({
-          ds, name, letter:match.letter, sup:match.sup, key:match.key,
+          ds, name, meal, letter:match.letter, sup:match.sup, key:match.key,
           color: badgeColor(colorIdx), _key: ds+name+match.key
         });
       });
     });
   });
 
-  if(!entries.length){
+  const visible = filterMeal === 'all' ? entries : entries.filter(e => e.meal === filterMeal);
+
+  if(!visible.length){
+    const msg = filterMeal === 'all'
+      ? 'No recipes planned in this date range.'
+      : `No ${filterMeal.toLowerCase()} recipes planned in this date range.`;
     el.innerHTML = `<div style="padding:16px 14px;font-size:.82rem;color:rgba(147,197,253,.35);line-height:1.6;">
-      No recipes planned in this date range.<br/>
+      ${msg}<br/>
       <a href="planner.html" style="color:#60a5fa;">Open Planner →</a>
     </div>`;
     return;
@@ -870,7 +913,7 @@ function renderSidebar(){
 
   if(sortMode === 'date'){
     const byDate = {};
-    entries.forEach(e => { if(!byDate[e.ds]) byDate[e.ds]=[]; byDate[e.ds].push(e); });
+    visible.forEach(e => { if(!byDate[e.ds]) byDate[e.ds]=[]; byDate[e.ds].push(e); });
     Object.keys(byDate).sort().forEach(ds => {
       html += `<div class="day-group-label">${fmtDateShort(ds)}</div>`;
       byDate[ds].forEach(e => {
@@ -878,7 +921,7 @@ function renderSidebar(){
       });
     });
   } else {
-    [...entries].sort((a,b)=>a.name.localeCompare(b.name)).forEach(e => {
+    [...visible].sort((a,b)=>a.name.localeCompare(b.name)).forEach(e => {
       html += rowHTML(e);
     });
   }

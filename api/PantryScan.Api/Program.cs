@@ -254,6 +254,7 @@ app.MapGet("/recipes", async () =>
 			Rating,
 			COALESCE(AddedAt, CreatedAt) AS AddedAt,
 			Servings,
+			CookMinutes,
 			IngredientsJson,
 			StepsJson,
 			Comments,
@@ -286,8 +287,8 @@ app.MapPost("/recipes", async (RecipeCreateDto dto) =>
 		: (DateTime?)null;
 
 	var id = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, IngredientsJson, StepsJson, Comments, ImageUrl)
-		VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
+		INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
+		VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
 		SELECT CAST(SCOPE_IDENTITY() AS int);",
 		new
 		{
@@ -299,6 +300,7 @@ app.MapPost("/recipes", async (RecipeCreateDto dto) =>
 			Rating = dto.Rating.GetValueOrDefault(0),
 			AddedAt = addedAt,
 			dto.Servings,
+			dto.CookMinutes,
 			IngredientsJson = JsonSerializer.Serialize(ingredients),
 			StepsJson = JsonSerializer.Serialize(steps),
 			Comments = string.IsNullOrWhiteSpace(dto.Comments) ? null : dto.Comments.Trim(),
@@ -344,8 +346,8 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 		await conn.ExecuteAsync(@"
 			IF NOT EXISTS (SELECT 1 FROM dbo.Recipes WHERE Name = @Name)
 			BEGIN
-				INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, IngredientsJson, StepsJson, Comments, ImageUrl)
-				VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
+				INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
+				VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
 			END",
 			new
 			{
@@ -357,6 +359,7 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 				Rating = entry.Rating.GetValueOrDefault(0),
 				AddedAt = addedAt,
 				entry.Servings,
+				entry.CookMinutes,
 				IngredientsJson = JsonSerializer.Serialize(ingredients),
 				StepsJson = JsonSerializer.Serialize(steps),
 				Comments = string.IsNullOrWhiteSpace(entry.Comments) ? null : entry.Comments.Trim(),
@@ -400,6 +403,7 @@ app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
 	if (dto.Tags is not null) { setClauses.Add("TagsJson = @TagsJson"); parameters.Add("TagsJson", JsonSerializer.Serialize(dto.Tags)); }
 	if (dto.Rating is not null) { setClauses.Add("Rating = @Rating"); parameters.Add("Rating", dto.Rating.Value); }
 	if (dto.Servings is not null) { setClauses.Add("Servings = @Servings"); parameters.Add("Servings", dto.Servings.Value); }
+	if (dto.CookMinutes is not null) { setClauses.Add("CookMinutes = @CookMinutes"); parameters.Add("CookMinutes", dto.CookMinutes.Value); }
 	if (dto.Ingredients is not null) { setClauses.Add("IngredientsJson = @IngredientsJson"); parameters.Add("IngredientsJson", JsonSerializer.Serialize(dto.Ingredients)); }
 	if (dto.Steps is not null) { setClauses.Add("StepsJson = @StepsJson"); parameters.Add("StepsJson", JsonSerializer.Serialize(dto.Steps)); }
 	if (dto.Comments is not null) { setClauses.Add("Comments = @Comments"); parameters.Add("Comments", string.IsNullOrWhiteSpace(dto.Comments) ? null : dto.Comments.Trim()); }
@@ -731,6 +735,7 @@ static async Task EnsureSchemaAsync(string connString)
 				[Rating] INT CONSTRAINT [DF_Recipes_Rating] DEFAULT (0) NOT NULL,
 				[AddedAt] DATETIME2 (7) NULL,
 				[Servings] INT NULL,
+				[CookMinutes] INT NULL,
 				[IngredientsJson] NVARCHAR (MAX) NOT NULL,
 				[StepsJson] NVARCHAR (MAX) NOT NULL,
 				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_Recipes_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
@@ -744,6 +749,7 @@ static async Task EnsureSchemaAsync(string connString)
 		IF COL_LENGTH('dbo.Recipes', 'TagsJson') IS NULL ALTER TABLE dbo.Recipes ADD [TagsJson] NVARCHAR (MAX) NULL;
 		IF COL_LENGTH('dbo.Recipes', 'Rating') IS NULL ALTER TABLE dbo.Recipes ADD [Rating] INT CONSTRAINT [DF_Recipes_Rating_Upgrade] DEFAULT (0) NOT NULL;
 		IF COL_LENGTH('dbo.Recipes', 'AddedAt') IS NULL ALTER TABLE dbo.Recipes ADD [AddedAt] DATETIME2 (7) NULL;
+		IF COL_LENGTH('dbo.Recipes', 'CookMinutes') IS NULL ALTER TABLE dbo.Recipes ADD [CookMinutes] INT NULL;
 
 		IF OBJECT_ID('dbo.MealPlanEntries', 'U') IS NULL
 		BEGIN
@@ -963,6 +969,19 @@ app.MapPost("/recipes/import", async (RecipeImportDto dto, IHttpClientFactory ht
 		var cuisine = GetStringOrFirstArray(node, "recipeCuisine");
 		var course = GetStringOrFirstArray(node, "recipeCategory") ?? GetStringOrFirstArray(node, "recipeCourse");
 
+		// Parse cook time from ISO 8601 duration (e.g. "PT30M", "PT1H30M")
+		int? cookMinutes = null;
+		var cookTimeStr = GetStringOrFirstArray(node, "cookTime") ?? GetStringOrFirstArray(node, "totalTime");
+		if (cookTimeStr is not null)
+		{
+			var hoursMatch   = System.Text.RegularExpressions.Regex.Match(cookTimeStr, @"(\d+)H");
+			var minutesMatch = System.Text.RegularExpressions.Regex.Match(cookTimeStr, @"(\d+)M");
+			int total = 0;
+			if (hoursMatch.Success && int.TryParse(hoursMatch.Groups[1].Value, out var h)) total += h * 60;
+			if (minutesMatch.Success && int.TryParse(minutesMatch.Groups[1].Value, out var m)) total += m;
+			if (total > 0) cookMinutes = total;
+		}
+
 		var tags = new List<string>();
 		if (node.TryGetProperty("keywords", out var kwProp))
 		{
@@ -972,7 +991,7 @@ app.MapPost("/recipes/import", async (RecipeImportDto dto, IHttpClientFactory ht
 				tags = kwProp.EnumerateArray().Select(e => e.GetString() ?? "").Where(t => t.Length > 0).ToList();
 		}
 
-		return Results.Ok(new { name, course, cuisine, source = uri.Host, tags, servings, ingredients, steps, sourceUrl = dto.Url });
+		return Results.Ok(new { name, course, cuisine, source = uri.Host, tags, servings, cookMinutes, ingredients, steps, sourceUrl = dto.Url });
 	}
 	catch (HttpRequestException ex)
 	{
@@ -1571,6 +1590,7 @@ record RecipeCreateDto(
 	int? Rating,
 	long? AddedAtUnixMs,
 	int? Servings,
+	int? CookMinutes,
 	string[]? Ingredients,
 	string[]? Steps,
 	string? Comments,
@@ -1586,6 +1606,7 @@ record RecipePatchDto(
 	string[]? Tags,
 	int? Rating,
 	int? Servings,
+	int? CookMinutes,
 	string[]? Ingredients,
 	string[]? Steps,
 	string? Comments,

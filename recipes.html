@@ -1776,6 +1776,10 @@
               <label>Servings</label>
               <input type="number" id="iServings" min="1" placeholder="4" />
             </div>
+            <div class="form-group">
+              <label>Cook time (minutes)</label>
+              <input type="number" id="iCookMinutes" min="1" placeholder="30" />
+            </div>
           </div>
           <div class="form-group">
             <label>Tags <span style="color:rgba(147,197,253,0.5);font-weight:400;">(comma-separated)</span></label>
@@ -2090,6 +2094,7 @@
         rating: row.rating ?? row.Rating ?? 0,
         addedAt: Number.isFinite(addedAtMs) ? addedAtMs : Date.now(),
         servings: row.servings ?? row.Servings ?? null,
+        cookMinutes: row.cookMinutes ?? row.CookMinutes ?? null,
         ingredients: parseJsonArray(row.ingredientsJson ?? row.IngredientsJson),
         steps: parseJsonArray(row.stepsJson ?? row.StepsJson),
         comments: row.comments ?? row.Comments ?? '',
@@ -2152,6 +2157,7 @@
         rating: Number.isFinite(recipe.rating) ? recipe.rating : 0,
         addedAtUnixMs: Number.isFinite(recipe.addedAt) ? recipe.addedAt : Date.now(),
         servings: Number.isFinite(recipe.servings) ? recipe.servings : null,
+        cookMinutes: Number.isFinite(recipe.cookMinutes) ? recipe.cookMinutes : null,
         ingredients: Array.isArray(recipe.ingredients) ? recipe.ingredients : [],
         steps: Array.isArray(recipe.steps) ? recipe.steps : []
       };
@@ -2468,6 +2474,7 @@
       document.getElementById('iCuisine').value     = data.cuisine     || '';
       document.getElementById('iSourceHost').value  = data.source      || '';
       document.getElementById('iServings').value    = data.servings    || '';
+      document.getElementById('iCookMinutes').value = data.cookMinutes || '';
       document.getElementById('iTags').value        = (data.tags        || []).join(', ');
       document.getElementById('iIngredients').value = (data.ingredients || []).map(i =>
         (i && typeof i === 'object') ? [i.amount, i.name].filter(Boolean).join(' ') : String(i)
@@ -2483,6 +2490,7 @@
         cuisine:     document.getElementById('iCuisine').value.trim(),
         source:      document.getElementById('iSourceHost').value.trim(),
         servings:    parseInt(document.getElementById('iServings').value) || null,
+        cookMinutes: parseInt(document.getElementById('iCookMinutes').value) || null,
         tags:        document.getElementById('iTags').value.split(',').map(t => t.trim()).filter(Boolean),
         rating:      0,
         addedAt:     Date.now(),
@@ -2953,6 +2961,7 @@
           ${r.course ? `<span class="detail-badge">📂 ${escHtml(r.course)}</span>` : ''}
           ${r.cuisine ? `<span class="detail-badge">🌍 ${escHtml(r.cuisine)}</span>` : ''}
           ${r.servings ? `<span class="detail-badge">🍽️ ${r.servings} servings</span>` : ''}
+          ${r.cookMinutes ? `<span class="detail-badge">⏱️ ${r.cookMinutes >= 60 ? Math.floor(r.cookMinutes/60) + 'h ' + (r.cookMinutes%60 ? r.cookMinutes%60 + 'm' : '') : r.cookMinutes + ' min'}</span>` : ''}
           ${r.source ? `<span class="detail-badge">🔗 ${escHtml(r.source)}</span>` : ''}
         </div>`;
 
@@ -3061,6 +3070,10 @@
                     <div class="detail-label">Servings</div>
                     <input class="detail-edit-input" id="editServings" type="number" min="1" value="${r.servings || ''}" />
                   </div>
+                  <div class="detail-section" style="flex:0 0 120px;">
+                    <div class="detail-label">Cook time (min)</div>
+                    <input class="detail-edit-input" id="editCookMinutes" type="number" min="1" value="${r.cookMinutes || ''}" />
+                  </div>
                   <div class="detail-section" style="flex:1;min-width:0;">
                     <div class="detail-label">Tags <span style="font-weight:400;text-transform:none;letter-spacing:0;color:rgba(147,197,253,0.4);font-size:0.78rem;">(comma-separated)</span></div>
                     <input class="detail-edit-input" id="editTags" value="${escAttr((r.tags || []).join(', '))}" />
@@ -3158,6 +3171,8 @@
       const source = document.getElementById('editSource')?.value?.trim() || '';
       const servingsRaw = document.getElementById('editServings')?.value;
       const servings = servingsRaw ? parseInt(servingsRaw) || null : null;
+      const cookMinutesRaw = document.getElementById('editCookMinutes')?.value;
+      const cookMinutes = cookMinutesRaw ? parseInt(cookMinutesRaw) || null : null;
       const tagsRaw = document.getElementById('editTags')?.value || '';
       const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
       const ingredients = getIngredientsForSave();
@@ -3172,12 +3187,13 @@
       r.cuisine = cuisine;
       r.source = source;
       r.servings = servings;
+      r.cookMinutes = cookMinutes;
       r.tags = tags;
       r.ingredients = ingredients;
       r.steps = steps;
       r.comments = comments;
 
-      patchRecipe(detailRecipeId, { name, course, cuisine, source, servings, tags, ingredients, steps, comments });
+      patchRecipe(detailRecipeId, { name, course, cuisine, source, servings, cookMinutes, tags, ingredients, steps, comments });
       detailLocked = true;
       detailIngTab = 'line';
       document.getElementById('detailPanel').classList.remove('edit-mode');

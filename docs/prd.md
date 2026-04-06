@@ -126,47 +126,42 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 5 — Simple AI Meal Planner 🔲 Upcoming
-**What you'll build:**
-- Quick-action cards on the planner page: "Plan this week", "Plan breakfasts", "Plan dinners", etc.
-- Clicking a card triggers an AI workflow that:
-  1. Reads the selected date range
-  2. Reads available recipes and pantry inventory
-  3. Generates a draft meal plan using sensible defaults
-  4. Gives the option to add items to shopping list that aren't in current inventory. 
-  5. Presents the draft to the user — each slot can be accepted, rejected, or swapped
-  6. Rejected slots trigger a new AI suggestion for that slot only
-  7. Confirmed slots are written to the meal plan API
-- Also builds the `/plan-and-shop` command:
-  1. Reads the confirmed meal plan
-  2. Extracts required ingredients from each recipe
-  3. Compares against pantry stock
-  4. Writes missing items directly to the shopping list API
+### Phase 5 — Simple AI Meal Planner ✅ Done
+**What you built:**
+- AI action bar on the planner page with quick-action cards: "Plan this week", "Plan breakfasts", "Plan dinners", "Plan & shop"
+- Each card generates the corresponding slash command prefilled with the current week's date range and copies it to clipboard — the user pastes it into Claude Code to run the workflow
+- `/plan-week` slash command: reads the date range, available recipes, and pantry inventory; generates a draft meal plan; presents it slot-by-slot for accept/reject/swap via Claude Code's conversational interface; writes confirmed slots to the meal plan API
+- `/plan-and-shop` slash command: reads the confirmed meal plan, extracts required ingredients, compares against pantry stock, writes missing items to the shopping list API
 
-**What you'll learn:** What a *workflow* is — a sequence of agent steps with conditional logic, data passing between steps, and human review before a side effect lands. The accept/reject/re-suggest loop is the core pattern behind AI copilots that assist without overriding.
+**What you learned:** What a *workflow* is — a sequence of agent steps with conditional logic, data passing between steps, and human review before a side effect lands. The accept/reject/re-suggest loop is the core pattern behind AI copilots that assist without overriding. The "copy to Claude Code" pattern is a pragmatic bridge: the AI workflow lives in Claude Code, not in the browser.
 
 ---
 
-### Phase 5.5 — Extended AI Planner UI 🔲 Upcoming
-**What you'll build:**
-- A dedicated planner page with:
-  - **Date range picker** at the top (select any span of days to plan)
-  - **Left sidebar** with searchable, filterable recipe attributes — course, cuisine, tags, cook time, servings, and any future recipe attributes automatically included (filters are 1:1 with recipe fields)
-  - **Cook time preference** — user sets a max cook time ceiling per day or per meal slot
-  - **AI action cards** below the calendar view: "Plan this range", "Plan breakfasts only", "Fill empty slots", etc.
-- AI uses the full filter state when generating draft plans — only suggests recipes that match the active filters
-- Draft review UI from Phase 5 carries forward: accept, reject, get replacement suggestion per slot
+### Phase 5.5 — Extended AI Planner UI 🔶 In Progress
+**What's been built so far:**
+- Left sidebar on the planner page with recipe list, search, and course grouping
+- "Filters ≡" button exists in the sidebar (not yet wired up)
+
+**What remains:**
+- **Date range picker** at the top (currently only navigates by week/month, no custom range selection)
+- **Full filter panel** — cuisine, tags, cook time, servings (button exists but has no behavior)
+- **Cook time preference** — user sets a max cook time ceiling per day or per meal slot
+- AI uses the full filter state when generating draft plans — only suggests recipes matching active filters
 
 **What you'll learn:** How to pass rich user context into an AI workflow. The AI isn't just running a script — it's using your filter state as a constraint set. This is how real AI features work: structured user intent → constrained generation → human review → commit.
 
 ---
 
-### Phase 6 — Multi-User Auth 🔲 Upcoming
-**What you'll build:**
-- Login page with session tokens
-- `dbo.Users` table (email, password hash, role)
-- All write endpoints require `X-Session-Token` header
-- Each family member gets their own login
+### Phase 6 — Multi-User Auth 🔶 In Progress
+**What's been built:**
+- `login.html` sign-in page
+- `dbo.Users` table (display name, email, password hash, role)
+- `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` endpoints
+- Session token generation and validation helpers in the API
+
+**What remains:**
+- Write endpoints don't yet enforce `X-Session-Token` — auth exists but isn't gated
+- Each family member needs their own login provisioned
 
 **What you'll learn:** How identity works in agent systems. When multiple users *and* an AI agent all write to the same database, you need to know who did what. The audit trail from Phase 4 becomes meaningful here — `actor: "agent"` vs `actor: "user:2"`.
 
@@ -197,13 +192,16 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 9 — Calendar & Todos 🔲 Future
-**What you'll build:**
-- `dbo.CalendarEvents` and `dbo.TodoItems` tables
-- Calendar UI and Todo UI
-- Agent commands for creating/querying events and tasks
+### Phase 9 — Calendar & Todos ✅ Done
+**What you built:**
+- `dbo.CalendarEvents` and `dbo.Todos` tables (auto-created on startup)
+- Full CRUD endpoints: `GET/POST/PUT/DELETE /calendar`, `GET/POST/PUT/DELETE /todos`, `PUT /todos/{id}/complete`, `GET /todos/lists`
+- `calendar.html` — month-view grid calendar UI
+- `todos.html` — list-based UI with priorities and due dates
+- `agent-data-service.js` extended with event and todo read/write methods
+- All page sidebars updated to include Calendar and Todos navigation links
 
-**What you'll learn:** How to extend an agent-ready system. By this phase, the patterns are established — you're practicing applying them to new domains.
+**What you learned:** How to extend an agent-ready system. By this phase, the patterns are established — you're practicing applying them to new domains.
 
 ---
 

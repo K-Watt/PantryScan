@@ -105,9 +105,147 @@
       padding: 0 10px;
       cursor: pointer;
       white-space: nowrap;
-      transition: background 0.18s;
+      transition: background 0.18s, color 0.18s;
     }
-    .btn-filters:hover { background: rgba(59,130,246,0.2); color: #fff; }
+    .btn-filters:hover        { background: rgba(59,130,246,0.2); color: #fff; }
+    .btn-filters.filters-open { background: rgba(59,130,246,0.3); color: #fff; border-color: rgba(99,149,246,0.5); }
+
+    /* ── Filter panel ── */
+    .filter-panel {
+      display: none;
+      padding: 8px 10px 10px;
+      border-bottom: 1px solid rgba(59,130,246,0.15);
+      background: rgba(10,14,22,0.6);
+      flex-shrink: 0;
+    }
+    .filter-panel.open { display: block; }
+
+    .filter-section { margin-bottom: 10px; }
+    .filter-section:last-child { margin-bottom: 0; }
+
+    .filter-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: rgba(147,197,253,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 5px;
+    }
+
+    .filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+
+    .filter-chip {
+      background: rgba(30,64,175,0.15);
+      border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 999px;
+      color: rgba(147,197,253,0.7);
+      font-size: 0.75rem;
+      padding: 3px 9px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .filter-chip:hover  { background: rgba(59,130,246,0.2); color: #fff; }
+    .filter-chip.active { background: rgba(37,99,235,0.45); border-color: #3b82f6; color: #fff; }
+
+    .filter-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .filter-input {
+      flex: 1;
+      background: rgba(30,64,175,0.12);
+      border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: #fff;
+      font-size: 0.8rem;
+    }
+    .filter-input::placeholder { color: rgba(147,197,253,0.35); }
+    .filter-input:focus { outline: none; border-color: #3b82f6; }
+
+    .filter-number {
+      width: 60px;
+      background: rgba(30,64,175,0.12);
+      border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: #fff;
+      font-size: 0.8rem;
+      text-align: center;
+    }
+    .filter-number:focus { outline: none; border-color: #3b82f6; }
+    .filter-number::-webkit-inner-spin-button { opacity: 0.4; }
+
+    .filter-clear {
+      background: none;
+      border: none;
+      color: rgba(147,197,253,0.4);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0;
+      transition: color 0.15s;
+      margin-left: auto;
+      display: block;
+      margin-top: 6px;
+    }
+    .filter-clear:hover { color: #f87171; }
+
+    .filter-active-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #3b82f6;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+
+    /* ── Date range bar (above AI cards) ── */
+    .date-range-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(10,14,22,0.85);
+      border-bottom: 1px solid rgba(59,130,246,0.1);
+      flex-shrink: 0;
+    }
+    .date-range-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: rgba(147,197,253,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      white-space: nowrap;
+    }
+    .date-range-input {
+      background: rgba(30,64,175,0.15);
+      border: 1px solid rgba(59,130,246,0.22);
+      border-radius: 6px;
+      color: #93c5fd;
+      font-size: 0.8rem;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+    .date-range-input:focus { outline: none; border-color: #3b82f6; }
+    .date-range-sep { color: rgba(147,197,253,0.35); font-size: 0.8rem; }
+    .date-range-reset {
+      background: none;
+      border: none;
+      color: rgba(147,197,253,0.35);
+      font-size: 0.75rem;
+      cursor: pointer;
+      padding: 0 2px;
+      transition: color 0.15s;
+    }
+    .date-range-reset:hover { color: #93c5fd; }
 
     /* Recipe list */
     .recipe-list {
@@ -698,7 +836,43 @@
 
     <div class="sidebar-search">
       <input type="text" id="sidebarSearch" placeholder="Search" oninput="filterSidebar()" />
-      <button class="btn-filters">Filters ≡</button>
+      <button class="btn-filters" id="btnFilters" onclick="toggleFilterPanel()">Filters ≡</button>
+    </div>
+
+    <div class="filter-panel" id="filterPanel">
+      <div class="filter-section">
+        <div class="filter-label">Course</div>
+        <div class="filter-chips" id="filterCourseChips"></div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-label">Cuisine</div>
+        <div class="filter-row">
+          <input type="text" class="filter-input" id="filterCuisine"
+                 placeholder="e.g. Italian" oninput="onFilterChange()" />
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-label">Tags</div>
+        <div class="filter-chips" id="filterTagChips"></div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-label">Cook time</div>
+        <div class="filter-chips" id="filterCookChips"></div>
+      </div>
+
+      <div class="filter-section">
+        <div class="filter-label">Min servings</div>
+        <div class="filter-row">
+          <input type="number" class="filter-number" id="filterMinServings"
+                 placeholder="—" min="1" max="50" oninput="onFilterChange()" />
+          <span class="date-range-sep">people</span>
+        </div>
+      </div>
+
+      <button class="filter-clear" onclick="clearFilters()">Clear all filters</button>
     </div>
 
     <div class="recipe-list" id="recipeList">
@@ -735,11 +909,20 @@
       </div>
     </div>
 
+    <!-- Date range bar -->
+    <div class="date-range-bar">
+      <span class="date-range-label">Range</span>
+      <input type="date" class="date-range-input" id="rangeFrom" onchange="onRangeChange()" />
+      <span class="date-range-sep">→</span>
+      <input type="date" class="date-range-input" id="rangeTo" onchange="onRangeChange()" />
+      <button class="date-range-reset" onclick="resetDateRange()" title="Use current week">↺</button>
+    </div>
+
     <!-- AI action bar -->
     <div class="ai-action-bar">
       <span class="ai-bar-label">AI</span>
       <button class="ai-card" onclick="triggerAiPlan('week')">
-        <span class="ai-card-icon">🗓️</span> Plan this week
+        <span class="ai-card-icon">🗓️</span> Plan this range
       </button>
       <button class="ai-card" onclick="triggerAiPlan('breakfasts')">
         <span class="ai-card-icon">🌅</span> Plan breakfasts
@@ -786,6 +969,16 @@ cursor.setHours(0,0,0,0);
 
 let dragRecipeName = null;        // recipe being dragged from sidebar
 let collapsed      = {};          // { 'week-key': true }
+
+let filterState = {
+  courses:      [],    // [] = all
+  cuisine:      '',    // '' = all
+  tags:         [],    // [] = all
+  maxCook:      null,  // null = no limit
+  minServings:  null,  // null = no limit
+};
+
+let customRange = { from: null, to: null }; // null = use current week
 
 /* ── Persistence ── */
 function loadRecipes() { return agentData.loadLocalRecipes(); }
@@ -930,18 +1123,43 @@ async function syncNoteToApi(dateStr, note) {
 ════════════════════════════════════════════════════════════ */
 function unique(arr) { return [...new Set(arr.filter(Boolean))].sort(); }
 
-function renderSidebar(filter = '') {
+function getFilteredRecipes(src) {
+  const q = (document.getElementById('sidebarSearch')?.value || '').toLowerCase().trim();
+  return src.filter(r => {
+    if (q && !r.name.toLowerCase().includes(q)) return false;
+    if (filterState.courses.length && !filterState.courses.includes(r.course || 'Uncategorized')) return false;
+    if (filterState.cuisine && !(r.cuisine || '').toLowerCase().includes(filterState.cuisine.toLowerCase())) return false;
+    if (filterState.tags.length) {
+      const rTags = Array.isArray(r.tags) ? r.tags : (r.tagsJson ? tryParseJson(r.tagsJson) : []) || [];
+      if (!filterState.tags.every(t => rTags.includes(t))) return false;
+    }
+    if (filterState.maxCook != null && r.cookMinutes != null && r.cookMinutes > filterState.maxCook) return false;
+    if (filterState.minServings != null && r.servings != null && r.servings < filterState.minServings) return false;
+    return true;
+  });
+}
+
+function tryParseJson(s) {
+  try { return JSON.parse(s); } catch { return []; }
+}
+
+function hasActiveFilters() {
+  return filterState.courses.length || filterState.cuisine ||
+         filterState.tags.length || filterState.maxCook != null || filterState.minServings != null;
+}
+
+function renderSidebar() {
   const list = document.getElementById('recipeList');
-  const q    = filter.toLowerCase().trim();
   const src  = loadRecipes();   // always fresh
   recipes    = src;
 
-  const visible = src.filter(r => !q || r.name.toLowerCase().includes(q));
+  const visible = getFilteredRecipes(src);
 
   if (!visible.length) {
     list.innerHTML = src.length
       ? '<div class="sidebar-empty">No matching recipes.</div>'
       : '<div class="sidebar-empty">No recipes yet.<br/><a href="recipes.html">Add recipes →</a></div>';
+    updateFilterBtnState();
     return;
   }
 
@@ -971,17 +1189,121 @@ function renderSidebar(filter = '') {
   `).join('');
 
   document.getElementById('friendsBadge').textContent = src.length;
+  updateFilterBtnState();
 }
 
 function filterSidebar() {
-  renderSidebar(document.getElementById('sidebarSearch').value);
+  renderSidebar();
+}
+
+/* ════════════════════════════════════════════════════════════
+   Filter panel
+════════════════════════════════════════════════════════════ */
+function toggleFilterPanel() {
+  const panel = document.getElementById('filterPanel');
+  const btn   = document.getElementById('btnFilters');
+  const isOpen = panel.classList.toggle('open');
+  btn.classList.toggle('filters-open', isOpen);
+  if (isOpen) renderFilterPanel();
+}
+
+function renderFilterPanel() {
+  const src = loadRecipes();
+
+  // Course chips
+  const allCourses = unique(src.map(r => r.course || 'Uncategorized'));
+  document.getElementById('filterCourseChips').innerHTML = allCourses.map(c => `
+    <span class="filter-chip ${filterState.courses.includes(c) ? 'active' : ''}"
+          onclick="toggleCourseFilter('${escAttr(c)}')">${escHtml(c)}</span>
+  `).join('');
+
+  // Tags chips (top 20 most-used)
+  const tagCounts = {};
+  src.forEach(r => {
+    const tags = Array.isArray(r.tags) ? r.tags : (r.tagsJson ? tryParseJson(r.tagsJson) : []) || [];
+    tags.forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
+  });
+  const topTags = Object.entries(tagCounts)
+    .sort((a,b) => b[1]-a[1]).slice(0,20).map(([t]) => t);
+  document.getElementById('filterTagChips').innerHTML = topTags.length
+    ? topTags.map(t => `
+        <span class="filter-chip ${filterState.tags.includes(t) ? 'active' : ''}"
+              onclick="toggleTagFilter('${escAttr(t)}')">${escHtml(t)}</span>
+      `).join('')
+    : '<span style="font-size:0.75rem;color:rgba(147,197,253,0.35)">No tags yet</span>';
+
+  // Cook time preset chips
+  const cookPresets = [
+    { label: '< 15 min', value: 15 },
+    { label: '< 30 min', value: 30 },
+    { label: '≤ 1 hr',   value: 60 },
+    { label: 'No limit', value: null },
+  ];
+  document.getElementById('filterCookChips').innerHTML = cookPresets.map(p => `
+    <span class="filter-chip ${filterState.maxCook === p.value ? 'active' : ''}"
+          onclick="setCookFilter(${p.value === null ? 'null' : p.value})">${escHtml(p.label)}</span>
+  `).join('');
+
+  // Restore servings input
+  const minServEl = document.getElementById('filterMinServings');
+  if (minServEl) minServEl.value = filterState.minServings ?? '';
+}
+
+function toggleCourseFilter(course) {
+  const idx = filterState.courses.indexOf(course);
+  if (idx >= 0) filterState.courses.splice(idx, 1);
+  else filterState.courses.push(course);
+  renderFilterPanel();
+  renderSidebar();
+}
+
+function toggleTagFilter(tag) {
+  const idx = filterState.tags.indexOf(tag);
+  if (idx >= 0) filterState.tags.splice(idx, 1);
+  else filterState.tags.push(tag);
+  renderFilterPanel();
+  renderSidebar();
+}
+
+function setCookFilter(value) {
+  filterState.maxCook = value;
+  renderFilterPanel();
+  renderSidebar();
+}
+
+function onFilterChange() {
+  const cuisine = document.getElementById('filterCuisine')?.value.trim() || '';
+  const minServ = parseInt(document.getElementById('filterMinServings')?.value) || null;
+  filterState.cuisine     = cuisine;
+  filterState.minServings = minServ;
+  renderSidebar();
+}
+
+function clearFilters() {
+  filterState = { courses: [], cuisine: '', tags: [], maxCook: null, minServings: null };
+  const cuisineEl = document.getElementById('filterCuisine');
+  if (cuisineEl) cuisineEl.value = '';
+  renderFilterPanel();
+  renderSidebar();
+}
+
+function updateFilterBtnState() {
+  const btn = document.getElementById('btnFilters');
+  if (!btn) return;
+  const active = hasActiveFilters();
+  // Show a dot indicator when filters are active but panel is closed
+  const panel = document.getElementById('filterPanel');
+  const isOpen = panel?.classList.contains('open');
+  btn.innerHTML = active && !isOpen
+    ? 'Filters ≡<span class="filter-active-dot"></span>'
+    : 'Filters ≡';
 }
 
 function toggleStar(name) {
   const all = loadRecipes();
   const r   = all.find(x => x.name === name);
   if (r) { r.rating = r.rating > 0 ? 0 : 5; agentData.saveLocalRecipes(all); }
-  renderSidebar(document.getElementById('sidebarSearch').value);
+  renderSidebar();
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1061,21 +1383,50 @@ function isToday(d) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   AI action bar
+   AI action bar + date range
 ════════════════════════════════════════════════════════════ */
 function getWeekRange() {
+  if (customRange.from && customRange.to) {
+    return { from: customRange.from, to: customRange.to };
+  }
   const mon = weekStart(cursor);
   const sun = new Date(mon);
   sun.setDate(mon.getDate() + 6);
   return { from: toISO(mon), to: toISO(sun) };
 }
 
+function onRangeChange() {
+  const from = document.getElementById('rangeFrom')?.value;
+  const to   = document.getElementById('rangeTo')?.value;
+  customRange.from = from || null;
+  customRange.to   = to   || null;
+}
+
+function resetDateRange() {
+  customRange = { from: null, to: null };
+  const fromEl = document.getElementById('rangeFrom');
+  const toEl   = document.getElementById('rangeTo');
+  if (fromEl) fromEl.value = '';
+  if (toEl)   toEl.value   = '';
+}
+
+function buildFilterSuffix() {
+  const parts = [];
+  if (filterState.courses.length)    parts.push(`courses:${filterState.courses.join(',')}`);
+  if (filterState.cuisine)           parts.push(`cuisine:${filterState.cuisine}`);
+  if (filterState.tags.length)       parts.push(`tags:${filterState.tags.join(',')}`);
+  if (filterState.maxCook != null)   parts.push(`max-cook:${filterState.maxCook}`);
+  if (filterState.minServings != null) parts.push(`min-servings:${filterState.minServings}`);
+  return parts.length ? ' --filters ' + parts.join(' ') : '';
+}
+
 function triggerAiPlan(mode) {
   const { from, to } = getWeekRange();
+  const filters = buildFilterSuffix();
   let prompt;
-  if (mode === 'week')        prompt = `/plan-week ${from} to ${to}`;
-  else if (mode === 'breakfasts') prompt = `/plan-week breakfasts ${from} to ${to}`;
-  else if (mode === 'dinners')    prompt = `/plan-week dinners ${from} to ${to}`;
+  if (mode === 'week')            prompt = `/plan-week ${from} to ${to}${filters}`;
+  else if (mode === 'breakfasts') prompt = `/plan-week breakfasts ${from} to ${to}${filters}`;
+  else if (mode === 'dinners')    prompt = `/plan-week dinners ${from} to ${to}${filters}`;
 
   navigator.clipboard.writeText(prompt).then(() => {
     showAiToast(`Copied! Paste into Claude Code: ${prompt}`);
@@ -1394,6 +1745,13 @@ async function bootPlanner() {
   } else {
     plan = loadPlan();
   }
+
+  // Pre-fill date range inputs with current week
+  const { from, to } = getWeekRange();
+  const fromEl = document.getElementById('rangeFrom');
+  const toEl   = document.getElementById('rangeTo');
+  if (fromEl) fromEl.value = from;
+  if (toEl)   toEl.value   = to;
 
   renderSidebar();
   renderCalendar();
