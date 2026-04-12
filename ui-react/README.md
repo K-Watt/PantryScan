@@ -8,7 +8,7 @@ Replaces the original static HTML pages with a full single-page application.
 - **React 19** with TypeScript
 - **Vite 8** for dev server and bundling
 - **React Router v7** for client-side routing
-- **PantryScan theme** (`ui/theme.css`) — glassmorphism design system shared with the static HTML pages
+- **PantryScan theme** (`src/theme.css`) — glassmorphism design system
 
 ## Getting Started
 
@@ -74,7 +74,8 @@ src/
     RegisterPage.tsx
   App.tsx           BrowserRouter + layout shell
   main.tsx          React entry point
-  index.css         Global styles (imports ui/theme.css design tokens)
+  index.css         Global styles (imports theme.css design tokens)
+  theme.css         Design tokens and shared component styles
 ```
 
 ## Auth Status

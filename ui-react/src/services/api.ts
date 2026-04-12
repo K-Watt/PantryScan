@@ -1,4 +1,4 @@
-// PantryScan API Service — TypeScript port of agent-data-service.js
+// PantryScan API Service
 
 const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:5169';
 

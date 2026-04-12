@@ -1,5 +1,5 @@
 /* Import PantryScan design tokens */
-@import '@theme';
+@import './theme.css';
 
 /* ============================================================
    GLOBAL RESETS & BASE STYLES

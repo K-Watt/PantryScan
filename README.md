@@ -10,12 +10,12 @@ For full product details see `docs/prd.md`. For coding conventions see `CLAUDE.m
 | Folder / File | Description |
 |---------------|-------------|
 | `api/PantryScan.Api/` | .NET 10 minimal API — all endpoints in `Program.cs` |
+| `api/PantryScan.Tests/` | Unit + integration tests |
 | `db/PantryScanDB/` | SQL schema files (one `.sql` per table) |
-| `docs/` | PRD, agent contracts, semantic layer, readiness tracker |
-| `ui-react/` | Planned React/TypeScript/Vite frontend (exploratory) |
+| `db/seeds/` | Seed data scripts |
+| `docs/` | PRD and documentation |
+| `ui-react/` | React/TypeScript/Vite frontend |
 | `.claude/commands/` | Claude Code slash command agent prompts |
-| `*.html` (root) | Vanilla HTML frontend pages — open directly in browser |
-| `agent-data-service.js` | Centralized frontend API adapter |
 
 ---
 
@@ -45,5 +45,9 @@ dotnet run
 # Listens on http://localhost:5169
 ```
 
-### 3️⃣ Open the UI
-Open any `.html` file at the repo root directly in a browser — no dev server needed.
+### 3️⃣ Start the Frontend
+```bash
+cd ui-react
+npm run dev
+# Opens on http://localhost:5173
+```

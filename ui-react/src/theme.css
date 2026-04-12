@@ -1,5 +1,5 @@
 /* PantryScan Theme — Glassmorphism Edition
-   Import this file in any page to apply the PantryScan design system.
+   Design tokens and shared component styles for the PantryScan UI.
 */
 
 /* ============================================================
@@ -511,98 +511,6 @@ body {
 }
 
 /* ============================================================
-   SCANNER
-   ============================================================ */
-.scanner-section {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: var(--radius-md);
-  padding: 25px;
-  margin-bottom: 25px;
-  border: 1px solid var(--border);
-  box-shadow: var(--glass-shadow);
-}
-
-.scanner-section h3 {
-  color: var(--accent-light);
-  margin-bottom: 15px;
-  font-size: 1.3rem;
-  font-weight: 700;
-}
-
-.camera-container {
-  position: relative;
-  width: 100%;
-  max-width: 500px;
-  margin: 0 auto;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--glass-shadow);
-}
-
-.camera-video {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.camera-overlay {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 250px;
-  height: 150px;
-  border: 3px solid var(--accent-light);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0 0 9999px var(--overlay);
-}
-
-.camera-overlay::before {
-  content: 'Position barcode in this area';
-  position: absolute;
-  top: -40px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(96, 165, 250, 0.85);
-  color: var(--text-bright);
-  padding: 8px 15px;
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.scanner-controls {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-
-.scanner-result {
-  background: rgba(5, 150, 105, 0.08);
-  border: 1px solid rgba(5, 150, 105, 0.3);
-  border-radius: var(--radius-md);
-  padding: 20px;
-  margin-top: 20px;
-  text-align: center;
-}
-
-.barcode-display {
-  font-family: var(--font-mono);
-  font-size: 1.2rem;
-  color: var(--accent-light);
-  background: rgba(255, 255, 255, 0.07);
-  padding: 10px 15px;
-  border-radius: var(--radius-sm);
-  margin: 10px 0;
-  letter-spacing: 2px;
-}
-
-/* ============================================================
    LOADING
    ============================================================ */
 .loading {
@@ -656,26 +564,8 @@ body {
     font-size: 1.8rem;
   }
 
-  .scanner-controls {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .scanner-controls .btn {
-    width: 100%;
-    max-width: 300px;
-  }
-
   /* On mobile, sidebar is hidden and overlay-mode */
   .app-main {
     margin-left: 0 !important;
   }
 }
-
-/* ============================================================
-   LEGACY TOP-BAR STUBS (kept for compat, hidden visually)
-   ============================================================ */
-.top-bar { display: none !important; }
-.top-bar-brand { display: none !important; }
-.top-bar-nav { display: none !important; }
-.top-nav-link { display: none !important; }
