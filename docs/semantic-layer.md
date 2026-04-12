@@ -18,7 +18,7 @@ Represents a physical food or household item stored in the home.
 | `unit` | string | Optional. Examples: `"oz"`, `"lbs"`, `"count"`, `"cups"`. Defaults to `"count"` if omitted. |
 | `barcode` | string | Optional. UPC/EAN barcode string from scanner. |
 | `expiresAt` | date | Optional. ISO 8601 `YYYY-MM-DD`. Alert when within 3 days. |
-| `addedBy` | userId | Optional (required after Phase 3 auth). Who added the item. |
+| `addedBy` | userId | Optional (required after Phase 7 auth). Who added the item. |
 | `createdAt` | datetime | Auto-set on insert. |
 
 **Business rules:**
@@ -92,7 +92,7 @@ An item on the grocery shopping list.
 | `quantity` | string | Optional. Free text. Examples: `"2 lbs"`, `"1 box"`. |
 | `category` | string | Optional. Examples: `"Produce"`, `"Dairy"`, `"Meat"`, `"Pantry"`. |
 | `checked` | bool | Default false. True = item is in cart / purchased. |
-| `addedBy` | userId | Optional (required after Phase 3 auth). |
+| `addedBy` | userId | Optional (required after Phase 7 auth). |
 | `createdAt` | datetime | Auto-set. |
 
 **Business rules:**

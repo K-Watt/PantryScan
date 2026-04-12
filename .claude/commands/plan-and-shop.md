@@ -17,10 +17,11 @@ Parse for a date range:
 1. Resolve the date range (default to current Mon–Sun if none given).
 
 2. In parallel, fetch all context:
-   - `GET http://localhost:5169/meal-plans?from=YYYY-MM-DD&to=YYYY-MM-DD` — planned meals for the range
-   - `GET http://localhost:5169/recipes` — full recipe details with ingredientsJson
+   - `GET http://localhost:5169/meal-plans?from=<fromDate>&to=<toDate>` — planned meals for the range
+   - `GET http://localhost:5169/recipes` — full recipe details with IngredientsJson
    - `GET http://localhost:5169/items` — current pantry inventory
    - `GET http://localhost:5169/shopping` — existing shopping list (avoid duplicates)
+   - If any call returns non-2xx or fails, stop and report: "API error on [endpoint] — [status/message]. Start the API with: cd api/PantryScan.Api && dotnet run"
 
 3. If the meal plan is empty for the range, output: "No meal plan found for [range] — run `/plan-week` first." Then stop.
 
@@ -60,9 +61,10 @@ Recipes covered: Garlic Pasta, Chicken Soup, Oatmeal *(free-text skipped: "Lefto
 
    ```json
    {
+     "idempotencyKey": "plan-shop-<fromDate>-<toDate>",
      "items": [
        {
-         "clientId": "plan-shop-garlic-20260407",
+         "clientId": "plan-shop-garlic-garlic-pasta-20260407",
          "name": "Garlic",
          "qty": null,
          "category": "Produce",
@@ -73,8 +75,10 @@ Recipes covered: Garlic Pasta, Chicken Soup, Oatmeal *(free-text skipped: "Lefto
    }
    ```
 
-   `clientId` format: `plan-shop-<slugified-name>-<YYYYMMDD>` (use first date the ingredient is needed).
+   `clientId` format: `plan-shop-<ingredient-slug>-<recipe-slug>-<YYYYMMDD>`. Include the recipe slug to prevent collisions when the same ingredient appears across multiple recipes.
    Infer `category` from ingredient type: Produce, Dairy, Meat, Pantry, Bakery, etc.
+
+   If the write returns non-2xx, report the error and tell the user nothing was saved.
 
    Confirm with: "Done — [N] items added to your shopping list."
 

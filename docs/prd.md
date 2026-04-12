@@ -8,9 +8,9 @@
 
 PantryScan is a private, family-facing web application for managing the home kitchen and shared household life. It starts as a pantry inventory tracker and grows into a full family hub: recipes, meal planning, grocery list generation, a shared calendar, and to-do lists. Each family member has their own login.
 
-A secondary goal runs alongside the build: use this project as a hands-on learning environment for modern AI development — agents, tool use, MCP servers, automations,and multi-step workflows — by wiring real AI capabilities into the app at each phase.
+A secondary goal runs alongside the build: use this project as a hands-on learning environment for modern AI development — agents, tool use, MCP servers, Github Copilot skills, Claude skills,  automations,and multi-step workflows — by wiring real AI capabilities into the app at each phase.
 
-> **Note on the home page:** The pantry inventory (`index.html`) is the current default landing page — a practical starting point, not the intended final experience. The long-term home page will be an AI-powered smart dashboard that greets the family with personalized meal suggestions based on pantry state, item freshness, cost, and a household preference profile. See Phase 11.
+> **Note on the home page:** The pantry inventory (`index.html`) is the current default landing page — a practical starting point, not the intended final experience. The long-term home page will be an AI-powered smart dashboard that greets the family with personalized meal suggestions based on pantry state, item freshness, cost, and a household preference profile. See Phase 12.
 
 ---
 
@@ -137,7 +137,7 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 5.5 — Extended AI Planner UI 🔶 In Progress
+### Phase 6 — Extended AI Planner UI 🔶 In Progress
 **What's been built so far:**
 - Left sidebar on the planner page with recipe list, search, and course grouping
 - "Filters ≡" button exists in the sidebar (not yet wired up)
@@ -152,7 +152,7 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 6 — Multi-User Auth 🔶 In Progress
+### Phase 7 — Multi-User Auth 🔶 In Progress
 **What's been built:**
 - `login.html` sign-in page
 - `dbo.Users` table (display name, email, password hash, role)
@@ -167,8 +167,8 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 7 — Google Calendar Integration 🔲 Future
-**Depends on:** Phase 6 (auth) — requires a Google OAuth login to exist before Google Calendar access is possible.
+### Phase 8 — Google Calendar Integration 🔲 Future
+**Depends on:** Phase 7 (auth) — requires a Google OAuth login to exist before Google Calendar access is possible.
 
 **What you'll build:**
 - Google Calendar OAuth scope added to the login flow — users grant calendar read access when signing in
@@ -183,7 +183,7 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 8 — MCP Server Integration 🔲 Future
+### Phase 9 — MCP Server Integration 🔲 Future
 **What you'll build:**
 - A local MCP server for PantryScan that exposes pantry, recipe, and shopping data as MCP tools
 - Connect it to Claude Code so Claude can read/write your app natively without HTTP calls
@@ -192,7 +192,7 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 9 — Calendar & Todos ✅ Done
+### Phase 10 — Calendar & Todos ✅ Done
 **What you built:**
 - `dbo.CalendarEvents` and `dbo.Todos` tables (auto-created on startup)
 - Full CRUD endpoints: `GET/POST/PUT/DELETE /calendar`, `GET/POST/PUT/DELETE /todos`, `PUT /todos/{id}/complete`, `GET /todos/lists`
@@ -205,7 +205,7 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 ---
 
-### Phase 10 — Expiration-Aware AI Planning 🔲 Future
+### Phase 11 — Expiration-Aware AI Planning 🔲 Future
 **What you'll build:**
 - The AI planner gains awareness of expiring pantry items when generating meal plans
 - AI builds an internal model of average shelf life per food category (e.g. fresh produce expires faster than canned goods)
@@ -214,11 +214,11 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 
 **What you'll learn:** What AI *memory* looks like in a real system — not just recalling conversation history, but maintaining structured, persistent knowledge that improves over time. This is adjacent to how recommendation systems and personalization engines work. The key challenge is: how do you store what the AI has "learned" so it survives between sessions?
 
-**Why this is last:** It requires a stable pantry inventory (Phase 3), a confirmed meal planning workflow (Phase 5/5.5), and enough recipe + pantry data in the system to be meaningful. The learning layer should be built on top of a working foundation, not alongside it.
+**Why this is last:** It requires a stable pantry inventory (Phase 3), a confirmed meal planning workflow (Phase 5/6), and enough recipe + pantry data in the system to be meaningful. The learning layer should be built on top of a working foundation, not alongside it.
 
 ---
 
-### Phase 11 — Smart Home Dashboard 🔲 Future
+### Phase 12 — Smart Home Dashboard 🔲 Future
 **What you'll build:**
 - A new `home.html` that becomes the app's default landing page, replacing the pantry page as the root
 - On load, the page displays AI-generated meal suggestions personalized to the household's current state
@@ -242,6 +242,7 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 | ORM | Dapper | Lightweight — just parameterized SQL, no magic |
 | Database | SQL Server (local) | Familiar, reliable, good tooling |
 | Frontend | Vanilla HTML/CSS/JS | No build step, no framework churn, easy to understand |
+| Frontend (planned) | React + TypeScript + Vite (`ui-react/`) | Planned migration to a component-based SPA; currently exploratory alongside the vanilla JS frontend |
 | AI runtime | Claude Code + slash commands | Agent logic lives in `.claude/commands/`, not in app code |
 | API design | REST + JSON | Simple, debuggable, tool-friendly |
 
@@ -288,8 +289,9 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 - **AI planner entry points:** The quick-action cards ("Plan this week", "Plan breakfasts") — do these live on the existing planner page, or does the extended planner UI replace it entirely?
 - **Rejected slot behavior:** When a user rejects a suggested meal, should the AI explain why it suggested it and ask for feedback, or just silently offer a new option?
 - **Google Calendar scope:** Read-only access to event titles/times is enough for busy-day detection — but do we want to write meal plan events back to Google Calendar as well?
-- **Expiration memory storage:** When the AI builds a model of average shelf life per food type, where does that data live? A new SQL table? Embedded in the semantic layer? This needs a design decision before Phase 10.
-- **Smart Home Dashboard parameters:** What signals should drive meal suggestions on the home page? Pantry contents and expiration are confirmed inputs; price/cost awareness, dietary preferences, cuisine variety targets, cook time ceilings, and others are TBD — to be explored in a dedicated scoping session before Phase 11 begins.
+- **Expiration memory storage:** When the AI builds a model of average shelf life per food type, where does that data live? A new SQL table? Embedded in the semantic layer? This needs a design decision before Phase 11.
+- **Smart Home Dashboard parameters:** What signals should drive meal suggestions on the home page? Pantry contents and expiration are confirmed inputs; price/cost awareness, dietary preferences, cuisine variety targets, cook time ceilings, and others are TBD — to be explored in a dedicated scoping session before Phase 12 begins.
+- **React migration:** `ui-react/` scaffolds the planned React/TypeScript/Vite frontend. When does exploration become a committed migration, and what triggers the cutover from vanilla HTML pages?
 
 ---
 
@@ -302,3 +304,4 @@ Note: The AI agent is treated as a first-class user of the system. This is inten
 | 2026-03-28 | Initial draft |
 | 2026-03-28 | Added AI meal planner feature (Phase 5, 5.5, Google Calendar, expiration-aware planning); expanded success criteria and open questions |
 | 2026-04-05 | Added Smart Home Dashboard vision (Phase 11); noted pantry page as temporary home; added open question for home page parameters |
+| 2026-04-11 | Renumbered phases sequentially (5.5→6, 6→7, 7→8, 8→9, 9→10, 10→11, 11→12) to reflect actual build order; added React/TypeScript/Vite planned migration to Technical Architecture; added React migration open question |

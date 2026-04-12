@@ -1,237 +1,159 @@
-Copilot Project Context
-
-This file gives Copilot the context it should use while generating code for this repo. The goal is to keep the project consistent and focused.
-
-Project Overview
-
-The project is called Smart Pantry. It is a kitchen inventory and pantry scanner web app. The app tracks food items, lets users scan barcodes or upload receipts, updates quantities automatically, and gives recipe suggestions based on the current inventory.
-
-The long term plan includes:
-
-Barcode scanning with a camera
-
-Receipt OCR to extract item names and quantities
-
-A SQL backed inventory system
-
-Automatic updates when items are used in recipes
-
-A clean and simple web interface for adding and removing items
-
-A meal planning feature that uses the inventory
-
-A basic account system for families
-
-Tech Stack
-
-The project uses:
-
-HTML, CSS, and JavaScript for the front end
-
-React for the UI
-
-A SQL database for inventory and user data
-
-Python or Node for the back end API
-
-OCR library support for receipt reading
-
-A barcode scanning library through JavaScript
-
-Coding Expectations
-
-Copilot should follow these rules when generating code:
-
-Write code that is modular and easy to maintain
-
-Use clear function names
-
-Keep every file focused on one purpose
-
-Add comments for anything that is not obvious
-
-Follow a clean folder structure
-
-Keep logic separated from UI
-
-Avoid unnecessary complexity
-
-Make error handling friendly and predictable
-
-Write functions that stay small
-
-Validate all inputs and protect against unsafe queries
-
-API Guidelines
-
-Use clear request and response structures
-
-Keep all database calls in a separate layer
-
-Sanitize user input
-
-Return JSON only
-
-Use correct status codes
-
-Provide simple logging for failure cases
-
-Front End Guidelines
-
-Use React functional components
-
-Keep the layout mobile friendly
-
-Keep state local unless it must be shared
-
-Reuse logic with hooks when needed
-
-Use fetch or axios for API calls
-
-Give clear loading and error states
-
-Receipt OCR Rules
-
-Extract item names, prices, and quantities
-
-Standardize names before saving to the database
-
-Map items to known pantry entries
-
-Flag unknown or unclear items for a manual check
-
-Barcode Scanner Rules
-
-Use a library that works well on mobile
-
-Parse GS1 codes when possible
-
-Match barcodes to known items with a lookup table
-
-Suggest close matches if no perfect match exists
-
-Inventory Logic
-
-Track quantity, unit, purchase date, and expiration date
-
-Deduct items when a recipe is prepared
-
-Allow manual adjustments
-
-Alert the user when an item is running low
-
-Use item IDs to keep everything linked
-
-Copilot Tone
-
-When writing code, Copilot should:
-
-Keep everything simple
-
-Keep intent clear
-
-Avoid clever tricks
-
-Maintain consistent structure across the project
-
-Copilot Workspace Agent Rules
-
-These instructions guide Copilot Workspace so the agent understands how to plan tasks, break down work, and generate code in a clean way.
-
-Agent Behavior
-
-The workspace agent should:
-
-Break tasks into small logical steps
-
-Explain the plan before generating code
-
-Use the current folder structure and respect existing patterns
-
-Avoid creating files that do not match the project layout
-
-Reuse existing components and functions
-
-Keep pull request sized changes
-
-Avoid rewriting large parts of the project unless asked
-
-Keep code readable and predictable
-
-Ask for missing context when needed
-
-Keep security and validation in mind at all times
-
-Workspace Goals
-
-The agent should focus on:
-
-Completing features for the pantry scanner
-
-Improving code clarity
-
-Fixing bugs
-
-Keeping naming and structure consistent
-
-Keeping the SQL and API layers clean and safe
-
-Supporting the long term goal of a stable inventory system
-
-Test Writing Rules
-
-All new features should include a basic test plan and code tests when possible.
-
-General Test Rules
-
-Write simple and direct test cases
-
-Use clear names for tests
-
-Cover normal use, edge cases, and failure cases
-
-Do not create huge test files
-
-Keep each test focused on one thing
-
-Use sample data that is easy to read
-
-Mock external calls when needed
-
-Keep the test folder organized
-
-Front End Tests
-
-Test component rendering
-
-Test user interaction
-
-Test state changes
-
-Test API calls with mocks
-
-Make sure loading and error states behave correctly
-
-Back End Tests
-
-Test API endpoints
-
-Test validation
-
-Test database access through a mock layer
-
-Confirm correct status codes and responses
-
-Test failure cases and empty states
-
-OCR and Barcode Tests
-
-Test sample receipt text extraction
-
-Test item mapping
-
-Test incorrect or incomplete data
-
-Test common barcode formats
-
-Test lookup logic and fallback suggestions
+# PantryScan Family Hub — Copilot Context
+
+This file gives GitHub Copilot the context it needs to generate consistent, on-pattern code for this repo. The source of truth for product decisions is `docs/prd.md`.
+
+---
+
+## Project Overview
+
+**PantryScan** is a private family web hub. It started as a pantry inventory tracker and is growing into a full household platform: recipes, meal planning, grocery list generation, a shared calendar, and to-do lists. Each family member has their own login. A secondary goal is using this project as a hands-on learning environment for AI agent development.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend | .NET 10 minimal API (ASP.NET Core) |
+| ORM | Dapper — parameterized SQL only, no magic |
+| Database | SQL Server (`PantryScanDB` on `localhost,1433`) |
+| Frontend (current) | Vanilla HTML/CSS/JavaScript — no build step, no framework |
+| Frontend (planned) | React + TypeScript + Vite (`ui-react/`) — exploratory migration |
+| AI runtime | Claude Code + slash commands in `.claude/commands/` |
+
+---
+
+## Folder Structure
+
+```
+PantryScan/
+├── api/PantryScan.Api/
+│   └── Program.cs          ← ALL API endpoints (minimal API, one file)
+├── db/PantryScanDB/
+│   └── dbo.*.sql           ← SQL schema files, one per table
+├── docs/
+│   ├── prd.md              ← Source of truth for product decisions
+│   ├── agent-contract.md   ← REST request/response contracts for agents
+│   ├── agent-readiness.md  ← Migration phase tracker
+│   └── semantic-layer.md   ← Domain entity vocabulary
+├── ui-react/               ← Planned React/TS/Vite frontend (exploratory)
+├── .claude/commands/       ← Slash command agent prompts
+├── agent-data-service.js   ← Frontend API adapter (centralized fetch)
+├── index.html              ← Pantry inventory (current default landing page)
+├── recipes.html            ← Recipe list
+├── planner.html            ← Meal planner
+├── shopping.html           ← Shopping list
+├── calendar.html           ← Calendar (month-view grid)
+├── todos.html              ← To-do lists with priorities and due dates
+├── login.html              ← Auth sign-in page
+└── barcode_scanner_page.html
+```
+
+---
+
+## Coding Rules
+
+- **All API endpoints live in `api/PantryScan.Api/Program.cs`** — do not split into controllers until the file exceeds ~1200 lines
+- **New SQL tables** go in `db/PantryScanDB/dbo.TableName.sql`
+- **Parameterized queries only** — Dapper handles this; never concatenate user input into SQL
+- **Input validation:** always check required fields, trim strings, reject negative quantities
+- **Error responses:** return `{ "error": "message" }` on 400/404; never throw unhandled exceptions to clients
+- **No premature abstraction** — only introduce helpers when used in more than one place
+
+---
+
+## API Conventions
+
+- Transport: JSON over HTTP
+- Date format: `YYYY-MM-DD` for planner/calendar dates; ISO 8601 for datetimes
+- All write endpoints accept optional `idempotencyKey` (UUID) and `audit` object
+- Duplicate `idempotencyKey` returns `{ "idempotent": true }` instead of re-executing
+- Every `DELETE` requires `?confirm=true` — omitting it returns `400`
+- Every write is recorded in `dbo.AuditLog`
+
+---
+
+## Current API Surface
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/` | Health check |
+| GET | `/items` | List pantry items |
+| POST | `/items` | Add pantry item |
+| PUT | `/items/{id}` | Update item quantity |
+| DELETE | `/items/{id}` | Remove item |
+| GET | `/recipes` | List recipes |
+| POST | `/recipes` | Create recipe |
+| PUT | `/recipes/{id}` | Update recipe |
+| DELETE | `/recipes/{id}` | Delete recipe |
+| POST | `/recipes/bulk` | Bulk create/migrate recipes |
+| GET | `/meal-plans` | Get meal plan entries (`?from=&to=`) |
+| POST | `/meal-plans` | Create/upsert meal plan entry |
+| POST | `/meal-plans/bulk` | Bulk upsert entries |
+| DELETE | `/meal-plans` | Delete entry by date + mealType |
+| PUT | `/meal-plans/note` | Upsert a day note |
+| GET | `/shopping` | List shopping items |
+| POST | `/shopping/items` | Add shopping item |
+| PUT | `/shopping/items/{clientId}/check` | Check/uncheck item |
+| DELETE | `/shopping/items/{clientId}` | Remove item |
+| DELETE | `/shopping/checked` | Clear all checked items |
+| POST | `/shopping/bulk` | Bulk add items |
+| GET | `/calendar` | List calendar events (`?from=&to=`) |
+| POST | `/calendar` | Create event |
+| PUT | `/calendar/{id}` | Update event |
+| DELETE | `/calendar/{id}` | Delete event |
+| GET | `/todos` | List todos (`?list=&completed=`) |
+| POST | `/todos` | Create todo |
+| PUT | `/todos/{id}` | Update todo |
+| PUT | `/todos/{id}/complete` | Toggle complete |
+| DELETE | `/todos/{id}` | Delete todo |
+| GET | `/todos/lists` | List distinct list names |
+| POST | `/auth/register` | Register a new user |
+| POST | `/auth/login` | Sign in, receive session token |
+| POST | `/auth/logout` | Invalidate session |
+| GET | `/auth/me` | Get current user from token |
+| GET | `/agent/context` | Agent-readable DB summary |
+| GET | `/agent/schema` | Semantic vocabulary + write envelope |
+
+---
+
+## Agent Integration
+
+- `agent-data-service.js` centralizes all frontend API calls — use it instead of raw `fetch` in HTML pages
+- Write operations accept optional `idempotencyKey` and `audit` fields (see `docs/agent-contract.md`)
+- Destructive operations (DELETE) require `?confirm=true`
+- Auth endpoints exist but writes are not yet token-gated (Phase 7 in progress — see `docs/prd.md`)
+
+---
+
+## Build Phases (summary — see `docs/prd.md` for detail)
+
+| Phase | Name | Status |
+|-------|------|--------|
+| 0 | Context Layer | ✅ Done |
+| 1 | Semantic Layer | ✅ Done |
+| 2 | Slash Command Agents | ✅ Done |
+| 3 | Shopping API Migration | ✅ Done |
+| 4 | Idempotency & Audit Trail | ✅ Done |
+| 5 | Simple AI Meal Planner | ✅ Done |
+| 6 | Extended AI Planner UI | 🔶 In Progress |
+| 7 | Multi-User Auth | 🔶 In Progress |
+| 8 | Google Calendar Integration | 🔲 Future |
+| 9 | MCP Server Integration | 🔲 Future |
+| 10 | Calendar & Todos | ✅ Done |
+| 11 | Expiration-Aware AI Planning | 🔲 Future |
+| 12 | Smart Home Dashboard | 🔲 Future |
+
+---
+
+## Copilot Behavior
+
+When generating code for this project, Copilot should:
+
+- Follow existing patterns in `Program.cs` before introducing new ones
+- Respect the one-file API rule — add endpoints inline, not in new files
+- Use Dapper with parameterized queries for all SQL
+- Match the existing error response shape: `{ "error": "message" }`
+- Never add auth middleware to routes until Phase 7 is explicitly implemented
+- Prefer editing existing files over creating new ones
+- Keep functions small and intent obvious — avoid clever tricks

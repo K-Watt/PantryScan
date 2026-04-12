@@ -35,7 +35,9 @@ Open any `.html` file directly in a browser — no dev server needed.
 - `planner.html` — Meal planner
 - `shopping.html` — Shopping list
 - `barcode_scanner_page.html` — Barcode scan
-- `login.html` — Auth (Phase 3+)
+- `login.html` — Auth (Phase 7+)
+- `calendar.html` — Calendar
+- `todos.html` — To-do lists
 
 ## Folder Map
 ```
@@ -45,16 +47,24 @@ PantryScan/
 ├── db/PantryScanDB/
 │   └── dbo.*.sql           ← SQL schema files (one per table)
 ├── docs/
+│   ├── prd.md              ← Source of truth for product decisions
 │   ├── agent-contract.md   ← REST request/response contracts for agents
 │   ├── agent-readiness.md  ← Migration phase tracker
 │   └── semantic-layer.md   ← Domain entity vocabulary (Phase 1+)
-├── ui/
-│   ├── styles.css
-│   └── theme.css
+├── ui-react/               ← Planned React/TS/Vite frontend (exploratory)
 ├── .claude/
 │   ├── settings.local.json ← Allowed bash commands + hooks
 │   └── commands/           ← /project:* slash command prompts (Phase 2+)
 ├── agent-data-service.js   ← Frontend API adapter (centralized fetch calls)
+├── index.html              ← Pantry inventory (current default landing page)
+├── recipes.html            ← Recipe list
+├── planner.html            ← Meal planner
+├── shopping.html           ← Shopping list
+├── calendar.html           ← Calendar (month-view grid)
+├── todos.html              ← To-do lists with priorities and due dates
+├── login.html              ← Auth sign-in page (Phase 7+)
+├── barcode_scanner_page.html
+├── copilot.md              ← Copilot project context
 └── CLAUDE.md               ← This file
 ```
 
@@ -78,8 +88,25 @@ PantryScan/
 | DELETE | `/meal-plans` | Delete entry by date+mealType |
 | PUT | `/meal-plans/note` | Upsert a day note |
 | GET | `/shopping` | List shopping items |
-| POST | `/shopping` | Add shopping item |
-| DELETE | `/shopping/{id}` | Remove shopping item |
+| POST | `/shopping/items` | Add shopping item |
+| PUT | `/shopping/items/{clientId}/check` | Check/uncheck item |
+| DELETE | `/shopping/items/{clientId}` | Remove item |
+| DELETE | `/shopping/checked` | Clear all checked items |
+| POST | `/shopping/bulk` | Bulk add items |
+| GET | `/calendar` | List calendar events `?from=&to=` |
+| POST | `/calendar` | Create event |
+| PUT | `/calendar/{id}` | Update event |
+| DELETE | `/calendar/{id}` | Delete event |
+| GET | `/todos` | List todos `?list=&completed=` |
+| POST | `/todos` | Create todo |
+| PUT | `/todos/{id}` | Update todo |
+| PUT | `/todos/{id}/complete` | Toggle complete |
+| DELETE | `/todos/{id}` | Delete todo |
+| GET | `/todos/lists` | List distinct list names |
+| POST | `/auth/register` | Register a new user |
+| POST | `/auth/login` | Sign in, receive session token |
+| POST | `/auth/logout` | Invalidate session |
+| GET | `/auth/me` | Get current user from token |
 | GET | `/agent/context` | Agent-readable summary of DB state |
 | GET | `/agent/schema` | Semantic vocabulary (Phase 1+) |
 
@@ -95,15 +122,21 @@ PantryScan/
 - New SQL tables go in `db/PantryScanDB/dbo.TableName.sql`
 - Input validation: always check required fields, trim strings, reject negative quantities
 - Return `{ error: "message" }` on 400/404; never throw unhandled exceptions to clients
-- No auth middleware yet — planned for Phase 3
+- No auth middleware yet — auth endpoints exist but writes are not token-gated until Phase 7 is complete
 - SQL: use parameterized queries only (Dapper handles this)
 
 ## Current Build Phase
-See `docs/agent-readiness.md` for phase tracker.
-- Phase 0 (Context layer): done
-- Phase 1 (Semantic layer): in progress
-- Phase 2 (.prompt slash commands): pending
-- Phase 3 (Multi-user auth): pending
-- Phase 4 (Agent workflows + shopping API): pending
-- Phase 5 (Calendar + Todos): pending
-- Phase 6 (Hooks + automations): pending
+See `docs/prd.md` for full phase detail. See `docs/agent-readiness.md` for migration tracker.
+- Phase 0 (Context Layer): ✅ done
+- Phase 1 (Semantic Layer): ✅ done
+- Phase 2 (Slash Command Agents): ✅ done
+- Phase 3 (Shopping API Migration): ✅ done
+- Phase 4 (Idempotency & Audit Trail): ✅ done
+- Phase 5 (Simple AI Meal Planner): ✅ done
+- Phase 6 (Extended AI Planner UI): 🔶 in progress
+- Phase 7 (Multi-User Auth): 🔶 in progress
+- Phase 8 (Google Calendar Integration): 🔲 future
+- Phase 9 (MCP Server Integration): 🔲 future
+- Phase 10 (Calendar & Todos): ✅ done
+- Phase 11 (Expiration-Aware AI Planning): 🔲 future
+- Phase 12 (Smart Home Dashboard): 🔲 future

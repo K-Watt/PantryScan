@@ -15,11 +15,12 @@ Parse the arguments to determine:
 
 1. Determine the date range from arguments. Resolve "current week" to the Monday–Sunday span containing today.
 
-2. In parallel, fetch all context:
+2. In parallel, fetch all context (substitute the resolved ISO dates from step 1 into the URL):
    - `GET http://localhost:5169/items` — pantry inventory
-   - `GET http://localhost:5169/recipes` — all saved recipes with ingredientsJson
-   - `GET http://localhost:5169/meal-plans?from=YYYY-MM-DD&to=YYYY-MM-DD` — already planned slots (skip these)
+   - `GET http://localhost:5169/recipes` — all saved recipes with IngredientsJson
+   - `GET http://localhost:5169/meal-plans?from=<fromDate>&to=<toDate>` — already planned slots (skip these)
    - `GET http://localhost:5169/shopping` — existing shopping list (avoid duplicates)
+   - If any call returns non-2xx or fails, stop and report: "API error on [endpoint] — [status/message]. Start the API with: cd api/PantryScan.Api && dotnet run"
 
 3. Build the full draft plan:
    - Only fill slots matching the meal type filter (or all three if no filter)
@@ -60,12 +61,14 @@ Parse the arguments to determine:
    - `no` → stop, write nothing
 
 7. On `yes`, execute writes:
-   a. `POST http://localhost:5169/meal-plans/bulk` with all new entries
-   b. If there are shopping items, `POST http://localhost:5169/shopping/bulk` with all items
+   a. `POST http://localhost:5169/meal-plans/bulk` with all new entries. Include an `idempotencyKey` (generate a UUID or use `plan-week-<fromDate>-<toDate>`).
+   b. If there are shopping items, `POST http://localhost:5169/shopping/bulk` with all items. Include a separate `idempotencyKey`.
+   c. If either write returns non-2xx, report the error and do not proceed with the other write — tell the user which write failed and what was left unsaved.
 
    ```json
    // meal-plans/bulk
    {
+     "idempotencyKey": "plan-week-2026-04-07-2026-04-13",
      "entries": [
        { "planDate": "2026-04-07", "mealType": "Breakfast", "recipeName": "Oatmeal", "recipeId": 3 }
      ]
@@ -73,11 +76,14 @@ Parse the arguments to determine:
 
    // shopping/bulk
    {
+     "idempotencyKey": "plan-shop-2026-04-07-2026-04-13",
      "items": [
-       { "clientId": "plan-shop-garlic-20260407", "name": "Garlic", "qty": null, "category": "Produce", "recipes": ["Garlic Pasta"], "checked": false }
+       { "clientId": "plan-shop-garlic-garlic-pasta-20260407", "name": "Garlic", "qty": null, "category": "Produce", "recipes": ["Garlic Pasta"], "checked": false }
      ]
    }
    ```
+
+   `clientId` format: `plan-shop-<ingredient-slug>-<recipe-slug>-<YYYYMMDD>`. Include the recipe slug to prevent collisions when the same ingredient is needed for multiple recipes on the same date.
 
    Confirm with: "Done — [N] meals planned, [N] items added to shopping list."
 

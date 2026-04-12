@@ -23,23 +23,33 @@ User provided: $ARGUMENTS
 6. Aggregate all needed ingredients across the week
 
 7. Compare against pantry:
-   - **Have enough:** quantity > 2 for that ingredient
-   - **Buy more:** low quantity (≤ 2) or zero
+   - **Have enough:** quantity > 1 for that ingredient — skip
+   - **Buy more:** quantity ≤ 1 (low stock)
    - **Need to buy:** not in pantry at all
 
 8. Produce a categorized shopping list of items to buy
 
-9. Ask: "Should I add these to your shopping list? (yes / edit first / cancel)"
+9. Ask: **"Add these [N] items to your shopping list? (yes / edit first / cancel)"**
+   - `yes` — add all items via bulk (step 10)
+   - `edit first` — show each item one by one and let the user approve, skip, or rename it; then add the approved subset
+   - `cancel` — stop, write nothing
 
-10. If confirmed, add each item via `POST http://localhost:5169/shopping/items`:
+10. If confirmed, add all items in one call to `POST http://localhost:5169/shopping/bulk`:
 ```json
 {
-  "clientId": "<uuid>",
-  "name": "Chicken breast",
-  "qty": "2 lbs",
-  "category": "Meat"
+  "idempotencyKey": "grocery-<fromDate>-<toDate>",
+  "items": [
+    {
+      "clientId": "grocery-<ingredient-slug>-<recipe-slug>-<YYYYMMDD>",
+      "name": "Chicken breast",
+      "qty": "2 lbs",
+      "category": "Meat",
+      "checked": false
+    }
+  ]
 }
 ```
+If the write returns non-2xx, report the error and tell the user nothing was saved.
 
 ## Output Format
 
