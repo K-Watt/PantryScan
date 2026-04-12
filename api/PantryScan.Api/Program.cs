@@ -243,7 +243,7 @@ app.MapGet("/agent/schema", () =>
 app.MapGet("/recipes", async () =>
 {
 	using var conn = new SqlConnection(connString);
-	var rows = await conn.QueryAsync(@"
+	var rows = await conn.QueryAsync<dynamic>(@"
 		SELECT
 			RecipeId,
 			Name,
@@ -262,53 +262,159 @@ app.MapGet("/recipes", async () =>
 			CreatedAt
 		FROM dbo.Recipes
 		ORDER BY RecipeId DESC");
-	return Results.Ok(rows);
+
+	var result = rows.Select(r =>
+	{
+		var ingredients = new List<object>();
+		if (!string.IsNullOrEmpty(r.IngredientsJson))
+		{
+			try
+			{
+				var deserialized = JsonSerializer.Deserialize<List<object>>(r.IngredientsJson);
+				if (deserialized != null) ingredients = deserialized;
+			}
+			catch { }
+		}
+
+		var instructions = new List<string>();
+		if (!string.IsNullOrEmpty(r.StepsJson))
+		{
+			try
+			{
+				var deserialized = JsonSerializer.Deserialize<List<string>>(r.StepsJson);
+				if (deserialized != null) instructions = deserialized;
+			}
+			catch { }
+		}
+
+		var tags = new List<string>();
+		if (!string.IsNullOrEmpty(r.TagsJson))
+		{
+			try
+			{
+				var deserialized = JsonSerializer.Deserialize<List<string>>(r.TagsJson);
+				if (deserialized != null) tags = deserialized;
+			}
+			catch { }
+		}
+
+		return new
+		{
+			id = r.RecipeId,
+			title = r.Name,
+			description = r.Comments,
+			ingredients,
+			instructions = instructions.Count > 0 ? string.Join("\n", instructions) : null,
+			servings = r.Servings,
+			cookMinutes = r.CookMinutes,
+			tags
+		};
+	}).ToList();
+
+	return Results.Ok(result);
 });
 
-app.MapPost("/recipes", async (RecipeCreateDto dto) =>
+app.MapPost("/recipes", async (HttpContext ctx) =>
 {
 	using var conn = new SqlConnection(connString);
-	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
-	if (idem is not null) return idem;
 
-	if (string.IsNullOrWhiteSpace(dto.Name))
+	// Read the request body to determine which format we're dealing with
+	ctx.Request.EnableBuffering();
+	using var reader = new StreamReader(ctx.Request.Body, leaveOpen: true);
+	var json = await reader.ReadToEndAsync();
+	ctx.Request.Body.Position = 0;
+
+	var doc = JsonDocument.Parse(json);
+	var root = doc.RootElement;
+
+	// Check if it's the frontend format (has "title" field) or legacy format (has "name" field)
+	bool isFrontendFormat = root.TryGetProperty("title", out _);
+
+	if (isFrontendFormat)
 	{
-		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
-			await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/recipes", null, 400, "error");
-		return Results.BadRequest(new { error = "Name is required." });
-	}
+		var dto = JsonSerializer.Deserialize<RecipeCreateFrontendDto>(json);
+		if (dto == null || string.IsNullOrWhiteSpace(dto.Title))
+			return Results.BadRequest(new { error = "Title is required." });
 
-	var name = dto.Name.Trim();
-	var tags = dto.Tags ?? [];
-	var ingredients = dto.Ingredients ?? [];
-	var steps = dto.Steps ?? [];
-	var addedAt = dto.AddedAtUnixMs.HasValue
-		? DateTimeOffset.FromUnixTimeMilliseconds(dto.AddedAtUnixMs.Value).UtcDateTime
-		: (DateTime?)null;
+		var title = dto.Title.Trim();
+		var ingredients = dto.Ingredients ?? [];
+		var instructions = dto.Instructions?.Split('\n').Where(s => !string.IsNullOrWhiteSpace(s)).ToArray() ?? [];
+		var tags = dto.Tags ?? [];
 
-	var id = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
-		VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
-		SELECT CAST(SCOPE_IDENTITY() AS int);",
-		new
+		var id = await conn.ExecuteScalarAsync<int>(@"
+			INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
+			VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
+			SELECT CAST(SCOPE_IDENTITY() AS int);",
+			new
+			{
+				Name = title,
+				Course = "Uncategorized",
+				Cuisine = (string?)null,
+				Source = (string?)null,
+				TagsJson = JsonSerializer.Serialize(tags),
+				Rating = 0,
+				AddedAt = (DateTime?)null,
+				Servings = dto.Servings,
+				CookMinutes = dto.CookMinutes,
+				IngredientsJson = JsonSerializer.Serialize(ingredients),
+				StepsJson = JsonSerializer.Serialize(instructions),
+				Comments = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim(),
+				ImageUrl = (string?)null
+			});
+
+		// Return in the format the frontend expects
+		return Results.Created($"/recipes/{id}", new
 		{
-			Name = name,
-			Course = string.IsNullOrWhiteSpace(dto.Course) ? "Uncategorized" : dto.Course.Trim(),
-			Cuisine = string.IsNullOrWhiteSpace(dto.Cuisine) ? null : dto.Cuisine.Trim(),
-			Source = string.IsNullOrWhiteSpace(dto.Source) ? null : dto.Source.Trim(),
-			TagsJson = JsonSerializer.Serialize(tags),
-			Rating = dto.Rating.GetValueOrDefault(0),
-			AddedAt = addedAt,
-			dto.Servings,
-			dto.CookMinutes,
-			IngredientsJson = JsonSerializer.Serialize(ingredients),
-			StepsJson = JsonSerializer.Serialize(steps),
-			Comments = string.IsNullOrWhiteSpace(dto.Comments) ? null : dto.Comments.Trim(),
-			ImageUrl = string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim()
+			id = id,
+			title = title,
+			description = dto.Description,
+			ingredients = ingredients,
+			instructions = string.Join("\n", instructions),
+			servings = dto.Servings,
+			cookMinutes = dto.CookMinutes,
+			prepMinutes = dto.PrepMinutes,
+			tags = tags
 		});
+	}
+	else
+	{
+		// Legacy format handling
+		var dto = JsonSerializer.Deserialize<RecipeCreateDto>(json);
+		if (dto == null || string.IsNullOrWhiteSpace(dto.Name))
+			return Results.BadRequest(new { error = "Name is required." });
 
-	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/recipes", JsonSerializer.Serialize(new { dto.Name }), 201, "success");
-	return Results.Created($"/recipes/{id}", new { recipeId = id, Name = name, dto.Servings });
+		var name = dto.Name.Trim();
+		var tags = dto.Tags ?? [];
+		var ingredients = dto.Ingredients ?? [];
+		var steps = dto.Steps ?? [];
+		var addedAt = dto.AddedAtUnixMs.HasValue
+			? DateTimeOffset.FromUnixTimeMilliseconds(dto.AddedAtUnixMs.Value).UtcDateTime
+			: (DateTime?)null;
+
+		var id = await conn.ExecuteScalarAsync<int>(@"
+			INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
+			VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
+			SELECT CAST(SCOPE_IDENTITY() AS int);",
+			new
+			{
+				Name = name,
+				Course = string.IsNullOrWhiteSpace(dto.Course) ? "Uncategorized" : dto.Course.Trim(),
+				Cuisine = string.IsNullOrWhiteSpace(dto.Cuisine) ? null : dto.Cuisine.Trim(),
+				Source = string.IsNullOrWhiteSpace(dto.Source) ? null : dto.Source.Trim(),
+				TagsJson = JsonSerializer.Serialize(tags),
+				Rating = dto.Rating.GetValueOrDefault(0),
+				AddedAt = addedAt,
+				dto.Servings,
+				dto.CookMinutes,
+				IngredientsJson = JsonSerializer.Serialize(ingredients),
+				StepsJson = JsonSerializer.Serialize(steps),
+				Comments = string.IsNullOrWhiteSpace(dto.Comments) ? null : dto.Comments.Trim(),
+				ImageUrl = string.IsNullOrWhiteSpace(dto.ImageUrl) ? null : dto.ImageUrl.Trim()
+			});
+
+		await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/recipes", JsonSerializer.Serialize(new { dto.Name }), 201, "success");
+		return Results.Created($"/recipes/{id}", new { recipeId = id, Name = name, dto.Servings });
+	}
 });
 
 app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
@@ -1011,28 +1117,66 @@ app.MapGet("/shopping", async () =>
 {
 	using var conn = new SqlConnection(connString);
 	var rows = (await conn.QueryAsync<ShoppingItemRow>(@"
-		SELECT ClientId, Name, Qty, Category, Store, Note, RecipesJson, IsChecked
+		SELECT ShoppingItemId, ClientId, Name, Qty, Category, Store, Note, RecipesJson, IsChecked
 		FROM dbo.ShoppingItems
 		ORDER BY ShoppingItemId ASC")).AsList();
 
+	// Return as array of ShoppingItem objects matching the frontend format
 	var items = rows.Select(r => new
 	{
-		id = r.ClientId,
+		id = r.ShoppingItemId,
 		name = r.Name,
-		qty = r.Qty ?? "",
-		category = r.Category ?? "Other",
-		store = r.Store ?? "",
-		note = r.Note ?? "",
-		recipes = string.IsNullOrEmpty(r.RecipesJson)
-			? Array.Empty<string>()
-			: JsonSerializer.Deserialize<string[]>(r.RecipesJson) ?? Array.Empty<string>()
+		quantity = r.Qty,
+		@checked = r.IsChecked
 	}).ToList();
 
-	var checkedMap = rows
-		.Where(r => r.IsChecked)
-		.ToDictionary(r => r.ClientId, _ => true);
+	return Results.Ok(items);
+});
 
-	return Results.Ok(new { items, @checked = checkedMap });
+// Frontend-compatible POST endpoint for adding shopping items
+app.MapPost("/shopping", async (ShoppingAddDto dto) =>
+{
+	using var conn = new SqlConnection(connString);
+
+	if (string.IsNullOrWhiteSpace(dto.Name))
+		return Results.BadRequest(new { error = "Name is required." });
+
+	var id = await conn.ExecuteScalarAsync<int>(@"
+		INSERT INTO dbo.ShoppingItems(ClientId, Name, Qty, Category, Store, Note)
+		VALUES (@ClientId, @Name, @Qty, @Category, @Store, @Note);
+		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		new
+		{
+			ClientId = Guid.NewGuid().ToString().Substring(0, 8),
+			Name = dto.Name.Trim(),
+			Qty = dto.Quantity?.Trim(),
+			Category = "Other",
+			Store = (string?)null,
+			Note = (string?)null
+		});
+
+	return Results.Created($"/shopping/{id}", new
+	{
+		id = id,
+		name = dto.Name.Trim(),
+		quantity = dto.Quantity,
+		@checked = false
+	});
+});
+
+// Frontend-compatible DELETE endpoint
+app.MapDelete("/shopping/{id:int}", async (int id, bool? confirm) =>
+{
+	if (confirm != true)
+		return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
+
+	using var conn = new SqlConnection(connString);
+	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.ShoppingItems WHERE ShoppingItemId = @id", new { id });
+
+	if (deleted == 0)
+		return Results.NotFound(new { error = "Item not found." });
+
+	return Results.NoContent();
 });
 
 app.MapPost("/shopping/items", async (ShoppingItemDto dto) =>
@@ -1597,6 +1741,15 @@ record RecipeCreateDto(
 	string? ImageUrl,
 	string? IdempotencyKey = null,
 	AuditDto? Audit = null);
+record RecipeCreateFrontendDto(
+	string Title,
+	string? Description,
+	object[]? Ingredients,
+	string? Instructions,
+	int? Servings,
+	int? PrepMinutes,
+	int? CookMinutes,
+	string[]? Tags);
 record RecipeBulkCreateDto(RecipeCreateDto[] Entries, string? IdempotencyKey = null, AuditDto? Audit = null);
 record RecipePatchDto(
 	string? Name,
@@ -1616,8 +1769,9 @@ record RecipePatchDto(
 record MealPlanEntryCreateDto(DateOnly PlanDate, string MealType, int? RecipeId, string? RecipeName, string? Notes, string? IdempotencyKey = null, AuditDto? Audit = null);
 record MealPlanBulkCreateDto(MealPlanEntryCreateDto[] Entries, string? IdempotencyKey = null, AuditDto? Audit = null);
 record MealPlanNoteUpsertDto(DateOnly PlanDate, string? Notes, string? IdempotencyKey = null, AuditDto? Audit = null);
-record ShoppingItemRow(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string? RecipesJson, bool IsChecked);
+record ShoppingItemRow(int ShoppingItemId, string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string? RecipesJson, bool IsChecked);
 record ShoppingItemDto(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string[]? Recipes, string? IdempotencyKey = null, AuditDto? Audit = null);
+record ShoppingAddDto(string Name, string? Quantity);
 record ShoppingCheckDto(bool Checked, string? IdempotencyKey = null, AuditDto? Audit = null);
 record ShoppingBulkItemDto(string ClientId, string Name, string? Qty, string? Category, string? Store, string? Note, string[]? Recipes, bool Checked);
 record ShoppingBulkDto(ShoppingBulkItemDto[] Items, string? IdempotencyKey = null, AuditDto? Audit = null);

@@ -28,8 +28,6 @@ Managing a household kitchen is chaotic:
 
 ## Non-Goals
 
-- Not a commercial product. Single household only.
-- Not a native mobile app — web app opened in a phone browser.
 - Not a nutrition tracker.
 
 ---
@@ -40,6 +38,8 @@ Managing a household kitchen is chaotic:
 |------|------|-------|
 | **Kodi** | Owner / builder | Full access, admin tools |
 | **Family members** | Members | Simple read/write access to pantry, planner, shopping |
+
+Multiple households are supported. Each household is a self-contained group with its own members, recipes, pantry, and plans.
 
 ---
 
@@ -54,6 +54,39 @@ Managing a household kitchen is chaotic:
 - **Auth endpoints** — register, login, logout, session tokens (not yet enforced on writes)
 - **AI slash commands** — `/pantry-status`, `/suggest-recipe`, `/add-recipe`, `/grocery-list`, `/plan-week`, `/plan-and-shop`, `/calendar`, `/todos`, `/pantry-write`
 - **Idempotency & audit trail** — all write endpoints accept idempotency keys, audit log table
+
+## Planned Features (Gap Analysis)
+
+Features approved for addition, ordered by theme:
+
+### Recipes — Rich Editing
+- **Image import** — attach an image to a recipe from a URL or file upload
+- **Video URL import** — link a YouTube/video URL to a recipe for step-by-step reference
+- **Raw JSON recipe editor** — power-user escape hatch to edit recipe data directly as JSON
+- **Custom key/value pairs** — arbitrary metadata on recipes (e.g. "source: Grandma", "last made: 2024-01")
+- **Recipe actions** — configurable per-recipe actions (e.g. send to shopping list, open in planner)
+- **Migrations** — one-time import from Tandoor, Nextcloud Cookbook, Paprika, Chowdown, Plan to Eat, Recipe Keeper, Copy Me That, My Recipe Box, DVO Cook'n X3
+
+### Organization
+- **Cookbooks** — named recipe collections (e.g. "Weeknight Dinners", "Kid Favorites")
+- **Fuzzy recipe search** — tolerates typos and partial matches; smart keyword search
+- **Canonical foods + units database** — normalized ingredient names and units to prevent duplicates ("1 cup" vs "1 c"), with seed/merge tooling
+
+### Meal Planning
+- **Planner rules** — configurable constraints for AI/random plan generation (no repeats within N days, rotate cuisines, prefer low-cook-time on weekdays, etc.)
+
+### Notifications
+- **Notifiers** — push or email alerts for expiring pantry items, low-stock items, and upcoming meal plan gaps
+- **Webhooks** — outbound HTTP hooks on events (meal plan updated, shopping list changed, etc.)
+
+### Platform
+- **Progressive Web App (PWA)** — installable on phone home screen, service worker for fast load; directly serves the "under 10 seconds from phone" goal
+- **Customizable color themes** — per-household or per-user color theme selection
+- **OpenAPI / interactive API docs** — auto-generated Swagger UI served at `/swagger`
+- **Automated backups** — scheduled database exports to a configurable destination (local path or remote)
+
+### Multi-Household
+- **Groups / Households** — multiple self-contained household groups, each with their own members, recipes, pantry, and plans; Kodi's household remains the default
 
 ---
 
@@ -80,6 +113,8 @@ The sidebar filter button exists but isn't wired up. Needs: cuisine, tags, cook 
 
 ### Complete React UI
 Build Calendar and Todos pages in `ui-react/src/pages/` to reach feature parity with the API.
+
+See **Planned Features** section above for the longer-horizon roadmap.
 
 ---
 
