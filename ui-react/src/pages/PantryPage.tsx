@@ -17,6 +17,7 @@ export default function PantryPage() {
   const [editMode, setEditMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selected, setSelected] = useState<PantryItem | null>(null);
+  const [exportExtended, setExportExtended] = useState(false);
 
   // Form fields
   const [name, setName] = useState('');
@@ -69,6 +70,23 @@ export default function PantryPage() {
       showStatus('Item removed.', 'success');
     } catch {
       showStatus('Failed to remove item.', 'error');
+    }
+  }
+
+  async function handleExportCsv() {
+    try {
+      const blob = await pantryApi.exportCsv(exportExtended);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = exportExtended ? 'pantry-inventory-extended.csv' : 'pantry-inventory.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showStatus('Inventory exported.', 'success');
+    } catch {
+      showStatus('Failed to export inventory.', 'error');
     }
   }
 
@@ -222,9 +240,30 @@ export default function PantryPage() {
 
       {tab === 'inventory' && (
         <div className="panel fade-in">
-          <h2 style={{ color: 'var(--accent-light)', marginBottom: '1.5rem' }}>
-            Current Inventory
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <h2 style={{ color: 'var(--accent-light)', margin: 0 }}>Current Inventory</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', flexWrap: 'wrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--muted)', fontSize: '0.85rem', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={exportExtended}
+                  onChange={e => setExportExtended(e.target.checked)}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }}
+                />
+                Include extra fields
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                disabled={items.length === 0}
+                onClick={handleExportCsv}
+                title={exportExtended ? 'Export with nutrition, category, package size & dates' : 'Export basic inventory'}
+              >
+                ⬇ Export CSV
+              </button>
+            </div>
+          </div>
           <div className="form-row" style={{ alignItems: 'flex-end' }}>
             <div className="form-group" style={{ flex: 2 }}>
               <label htmlFor="invSearch">Search</label>

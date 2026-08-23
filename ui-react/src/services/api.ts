@@ -157,6 +157,13 @@ export const pantryApi = {
   recentScans(page = 1, pageSize = 20): Promise<RecentScansPage> {
     return request<RecentScansPage>(`/items/recent?page=${page}&pageSize=${pageSize}`);
   },
+  // Download the full inventory as a CSV blob. `extended` adds product detail
+  // (category, package size, nutrition) from the local product cache.
+  async exportCsv(extended = false): Promise<Blob> {
+    const res = await fetch(`${API_BASE}/items/export${extended ? '?extended=true' : ''}`);
+    if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+    return res.blob();
+  },
   remove(id: number): Promise<void> {
     // Endpoint requires confirm=true for destructive operations.
     return request<void>(`/items/${id}?confirm=true`, { method: 'DELETE' });

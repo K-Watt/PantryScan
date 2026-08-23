@@ -1,5 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -80,6 +82,56 @@ app.MapGet("/items/recent", async (int? page, int? pageSize) =>
 		total,
 		totalPages = (int)Math.Ceiling(total / (double)ps),
 	});
+});
+
+// Export the full inventory as a CSV download.
+// ?extended=true adds product detail (category, package size, nutrition) from the Products cache.
+app.MapGet("/items/export", async (bool? extended) =>
+{
+	var ext = extended == true;
+	using var conn = new SqlConnection(connString);
+	var rows = await conn.QueryAsync<ItemExportRow>(@"
+		SELECT i.Name, i.Quantity, i.LowStockThreshold, i.Barcode, i.Brand, i.NeedsReview,
+		       i.LastScannedAt, i.CreatedAt, i.ImageUrl,
+		       p.Categories, p.PackageSize, p.NutritionJson
+		FROM dbo.Items i
+		LEFT JOIN dbo.Products p ON p.Barcode = i.Barcode
+		ORDER BY i.Name");
+
+	var baseHeaders = new[] { "Name", "Quantity", "LowStockThreshold", "Barcode", "Brand", "NeedsReview", "LastScannedAt (UTC)", "CreatedAt (UTC)" };
+	var extHeaders = new[] { "Category", "PackageSize", "ServingSize", "NutriScore", "NOVA",
+		"Energy (kcal/100g)", "Fat (g/100g)", "SaturatedFat (g/100g)", "Carbs (g/100g)", "Sugars (g/100g)",
+		"Fiber (g/100g)", "Protein (g/100g)", "Salt (g/100g)", "Sodium (g/100g)", "ImageURL" };
+
+	var sb = new StringBuilder();
+	sb.AppendLine(string.Join(",", (ext ? baseHeaders.Concat(extHeaders) : baseHeaders).Select(CsvField)));
+	foreach (var r in rows)
+	{
+		var cells = new List<string>
+		{
+			CsvField(r.Name),
+			r.Quantity.ToString(CultureInfo.InvariantCulture),
+			r.LowStockThreshold.ToString(CultureInfo.InvariantCulture),
+			CsvField(r.Barcode),
+			CsvField(r.Brand),
+			r.NeedsReview ? "Yes" : "No",
+			CsvField(r.LastScannedAt?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)),
+			CsvField(r.CreatedAt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)),
+		};
+		if (ext)
+		{
+			cells.Add(CsvField(r.Categories));
+			cells.Add(CsvField(r.PackageSize));
+			cells.AddRange(NutritionCells(r.NutritionJson).Select(CsvField));
+			cells.Add(CsvField(r.ImageUrl));
+		}
+		sb.AppendLine(string.Join(",", cells));
+	}
+
+	// Prepend a UTF-8 BOM so Excel renders accented product names correctly.
+	var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+	var fileName = ext ? "pantry-inventory-extended.csv" : "pantry-inventory.csv";
+	return Results.File(bytes, "text/csv", fileName);
 });
 
 app.MapPost("/items", async (ItemDto dto) =>
@@ -1142,6 +1194,18 @@ static async Task EnsureSchemaAsync(string connString)
 			);
 		END;
 	");
+
+	// One-time data migration: round any legacy decimal nutrition values to whole numbers.
+	// Self-terminating — once rewritten as integers, rows no longer match the '%.%' filter.
+	var legacy = await conn.QueryAsync(
+		"SELECT Barcode, NutritionJson FROM dbo.Products WHERE NutritionJson IS NOT NULL AND NutritionJson LIKE '%.%'");
+	foreach (var row in legacy)
+	{
+		var rounded = RoundNutritionJson((string)row.NutritionJson);
+		if (rounded is not null)
+			await conn.ExecuteAsync("UPDATE dbo.Products SET NutritionJson = @j WHERE Barcode = @b",
+				new { j = rounded, b = (string)row.Barcode });
+	}
 }
 
 app.MapPost("/recipes/import", async (RecipeImportDto dto, IHttpClientFactory httpClientFactory) =>
@@ -1916,26 +1980,97 @@ static string? BuildNutritionJson(JsonElement product)
 	if (energyKcal is null && fat is null && carbs is null && proteins is null && grade is null && nova is null)
 		return null;
 
+	return SerializeNutrition(servingSize, grade, nova, energyKcal, fat, satFat, carbs, sugars, fiber, proteins, salt, sodium, levels);
+}
+
+// Serialize a normalized per-100g nutrition object. All numeric values are rounded
+// to whole numbers — we don't keep decimals in the cache or exports.
+static string SerializeNutrition(string? servingSize, string? grade, int? nova,
+	double? energy, double? fat, double? sat, double? carbs, double? sugars,
+	double? fiber, double? protein, double? salt, double? sodium, object? levels)
+{
+	static int? R(double? d) => d is null ? null : (int)Math.Round(d.Value, MidpointRounding.AwayFromZero);
 	return JsonSerializer.Serialize(new
 	{
 		servingSize,
 		nutriscoreGrade = grade,
 		novaGroup = nova,
-		energyKcal100g = energyKcal,
-		fat100g = fat,
-		saturatedFat100g = satFat,
-		carbohydrates100g = carbs,
-		sugars100g = sugars,
-		fiber100g = fiber,
-		proteins100g = proteins,
-		salt100g = salt,
-		sodium100g = sodium,
+		energyKcal100g = R(energy),
+		fat100g = R(fat),
+		saturatedFat100g = R(sat),
+		carbohydrates100g = R(carbs),
+		sugars100g = R(sugars),
+		fiber100g = R(fiber),
+		proteins100g = R(protein),
+		salt100g = R(salt),
+		sodium100g = R(sodium),
 		nutrientLevels = levels,
 	});
 }
 
+// Re-serialize an existing normalized nutrition blob with whole-number values.
+// Used to migrate legacy cache rows that still hold decimals.
+static string? RoundNutritionJson(string json)
+{
+	try
+	{
+		using var doc = JsonDocument.Parse(json);
+		var el = doc.RootElement;
+		double? Num(string k) => el.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+		string? Str(string k) => el.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+		int? nova = el.TryGetProperty("novaGroup", out var nv) && nv.ValueKind == JsonValueKind.Number ? nv.GetInt32() : null;
+		Dictionary<string, string>? levels = null;
+		if (el.TryGetProperty("nutrientLevels", out var nl) && nl.ValueKind == JsonValueKind.Object)
+			levels = JsonSerializer.Deserialize<Dictionary<string, string>>(nl.GetRawText());
+
+		return SerializeNutrition(Str("servingSize"), Str("nutriscoreGrade"), nova,
+			Num("energyKcal100g"), Num("fat100g"), Num("saturatedFat100g"), Num("carbohydrates100g"),
+			Num("sugars100g"), Num("fiber100g"), Num("proteins100g"), Num("salt100g"), Num("sodium100g"), levels);
+	}
+	catch { return null; }
+}
+
 static string? Truncate(string? s, int max) =>
 	string.IsNullOrEmpty(s) ? s : (s.Length <= max ? s : s[..max]);
+
+// Quote a CSV field when it contains a comma, quote, or newline (RFC 4180).
+static string CsvField(string? s)
+{
+	s ??= "";
+	if (s.IndexOfAny(new[] { ',', '"', '\n', '\r' }) < 0) return s;
+	return "\"" + s.Replace("\"", "\"\"") + "\"";
+}
+
+// Flatten a stored NutritionJson blob into ordered CSV cells (empty strings when absent):
+// ServingSize, NutriScore, NOVA, Energy, Fat, SaturatedFat, Carbs, Sugars, Fiber, Protein, Salt, Sodium.
+static string[] NutritionCells(string? json)
+{
+	var cells = new string[12];
+	Array.Fill(cells, "");
+	if (string.IsNullOrEmpty(json)) return cells;
+	try
+	{
+		using var doc = JsonDocument.Parse(json);
+		var el = doc.RootElement;
+		string Str(string k) => el.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.String ? (v.GetString() ?? "") : "";
+		string Num(string k) => el.TryGetProperty(k, out var v) && v.ValueKind == JsonValueKind.Number
+			? ((int)Math.Round(v.GetDouble(), MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture) : "";
+		cells[0] = Str("servingSize");
+		cells[1] = Str("nutriscoreGrade").ToUpperInvariant();
+		cells[2] = Num("novaGroup");
+		cells[3] = Num("energyKcal100g");
+		cells[4] = Num("fat100g");
+		cells[5] = Num("saturatedFat100g");
+		cells[6] = Num("carbohydrates100g");
+		cells[7] = Num("sugars100g");
+		cells[8] = Num("fiber100g");
+		cells[9] = Num("proteins100g");
+		cells[10] = Num("salt100g");
+		cells[11] = Num("sodium100g");
+	}
+	catch { /* malformed cache entry — leave cells blank */ }
+	return cells;
+}
 
 // Shape a ProductInfo for JSON responses: parse the stored NutritionJson blob
 // into a real nested object instead of leaking it as an escaped string.
@@ -2028,6 +2163,7 @@ record ItemUpdateDto(int? Quantity = null, int? LowStockThreshold = null, string
 record ScanDto(string Barcode, int? Quantity = null, string? Name = null, string? IdempotencyKey = null, AuditDto? Audit = null);
 record ProductInfo(string Barcode, string? Name, string? Brand, string? ImageUrl, string? Categories, string? PackageSize, string? NutritionJson, string Source);
 record ScannedItemRow(int ItemId, string Name, int Quantity, string? Barcode, string? Brand, string? ImageUrl, bool NeedsReview);
+record ItemExportRow(string Name, int Quantity, int LowStockThreshold, string? Barcode, string? Brand, bool NeedsReview, DateTime? LastScannedAt, DateTime CreatedAt, string? ImageUrl, string? Categories, string? PackageSize, string? NutritionJson);
 record RecipeCreateDto(
 	string Name,
 	string? Course,
