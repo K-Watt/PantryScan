@@ -10,6 +10,62 @@ export interface PantryItem {
   id: number;
   name: string;
   quantity: number;
+  lowStockThreshold?: number;
+  needsReview?: boolean;
+  barcode?: string | null;
+  brand?: string | null;
+  imageUrl?: string | null;
+  lastScannedAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface RecentScansPage {
+  items: PantryItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface Nutrition {
+  servingSize?: string | null;
+  nutriscoreGrade?: string | null; // "a".."e"
+  novaGroup?: number | null;       // 1..4
+  energyKcal100g?: number | null;
+  fat100g?: number | null;
+  saturatedFat100g?: number | null;
+  carbohydrates100g?: number | null;
+  sugars100g?: number | null;
+  fiber100g?: number | null;
+  proteins100g?: number | null;
+  salt100g?: number | null;
+  sodium100g?: number | null;
+  nutrientLevels?: Record<string, string> | null;
+}
+
+export interface Product {
+  barcode: string;
+  name?: string | null;
+  brand?: string | null;
+  imageUrl?: string | null;
+  categories?: string | null;
+  packageSize?: string | null;
+  source: string; // "cache" | "openfoodfacts"
+  nutrition?: Nutrition | null;
+}
+
+export interface ScanResult {
+  item: {
+    itemId: number;
+    name: string;
+    quantity: number;
+    barcode?: string | null;
+    brand?: string | null;
+    imageUrl?: string | null;
+    needsReview: boolean;
+  };
+  product: Product | null;
+  found: boolean;
 }
 
 export interface Ingredient {
@@ -87,14 +143,38 @@ export const pantryApi = {
       body: JSON.stringify(item),
     });
   },
-  update(id: number, quantity: number): Promise<PantryItem> {
-    return request<PantryItem>(`/items/${id}`, {
+  update(id: number, patch: { quantity?: number; lowStockThreshold?: number; name?: string }): Promise<void> {
+    return request<void>(`/items/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ quantity }),
+      body: JSON.stringify(patch),
     });
   },
+  // Items scanned without a resolved name, awaiting a manual name.
+  reviewQueue(): Promise<PantryItem[]> {
+    return request<PantryItem[]>('/items/review');
+  },
+  // Paginated scan history, most-recently-scanned first.
+  recentScans(page = 1, pageSize = 20): Promise<RecentScansPage> {
+    return request<RecentScansPage>(`/items/recent?page=${page}&pageSize=${pageSize}`);
+  },
   remove(id: number): Promise<void> {
-    return request<void>(`/items/${id}`, { method: 'DELETE' });
+    // Endpoint requires confirm=true for destructive operations.
+    return request<void>(`/items/${id}?confirm=true`, { method: 'DELETE' });
+  },
+  // Look up product metadata for a barcode (local cache -> OpenFoodFacts).
+  // Returns null if the barcode is unknown.
+  async lookup(barcode: string): Promise<Product | null> {
+    const res = await fetch(`${API_BASE}/products/${encodeURIComponent(barcode)}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+    return res.json() as Promise<Product>;
+  },
+  // Scan a barcode straight into the pantry (increments quantity if already present).
+  scan(barcode: string, quantity = 1, name?: string): Promise<ScanResult> {
+    return request<ScanResult>('/items/scan', {
+      method: 'POST',
+      body: JSON.stringify({ barcode, quantity, name }),
+    });
   },
 };
 

@@ -31,6 +31,17 @@ For full product details see `docs/prd.md`. For coding conventions see `CLAUDE.m
 
 ## 🚀 Quick Start
 
+### ⭐ One command (recommended)
+From the repo root:
+```bash
+./start.sh          # or, from anywhere: pantryscan
+```
+This boots SQL Server (in Colima), the .NET API, and the React UI, then opens the app in your browser. Press **Ctrl+C** to stop the API and UI — SQL Server keeps running in the background. First run requires Colima (`brew install colima docker`).
+
+---
+
+### Manual steps
+
 ### 1️⃣ Clone & Open
 ```bash
 git clone <your-repo-url>

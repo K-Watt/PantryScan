@@ -37,8 +37,49 @@ app.MapGet("/", () => "PantryScan API running");
 app.MapGet("/items", async () =>
 {
 	using var conn = new SqlConnection(connString);
-	var rows = await conn.QueryAsync("SELECT ItemId, Name, Quantity, CreatedAt FROM dbo.Items ORDER BY ItemId DESC");
+	var rows = await conn.QueryAsync(@"
+		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS lowStockThreshold,
+		       NeedsReview AS needsReview, Barcode AS barcode, Brand AS brand, ImageUrl AS imageUrl, CreatedAt AS createdAt
+		FROM dbo.Items ORDER BY ItemId DESC");
 	return Results.Ok(rows);
+});
+
+// Items scanned without a resolved product name — awaiting a manual name.
+app.MapGet("/items/review", async () =>
+{
+	using var conn = new SqlConnection(connString);
+	var rows = await conn.QueryAsync(@"
+		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS lowStockThreshold,
+		       NeedsReview AS needsReview, Barcode AS barcode, Brand AS brand, ImageUrl AS imageUrl, CreatedAt AS createdAt
+		FROM dbo.Items WHERE NeedsReview = 1 ORDER BY ItemId DESC");
+	return Results.Ok(rows);
+});
+
+// Paginated scan history: items that have been scanned, most-recently-scanned first.
+app.MapGet("/items/recent", async (int? page, int? pageSize) =>
+{
+	var p = Math.Max(1, page ?? 1);
+	var ps = Math.Clamp(pageSize ?? 20, 1, 100);
+	using var conn = new SqlConnection(connString);
+	var total = await conn.ExecuteScalarAsync<int>(
+		"SELECT COUNT(1) FROM dbo.Items WHERE LastScannedAt IS NOT NULL");
+	var rows = await conn.QueryAsync(@"
+		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS lowStockThreshold,
+		       NeedsReview AS needsReview, Barcode AS barcode, Brand AS brand, ImageUrl AS imageUrl,
+		       LastScannedAt AS lastScannedAt, CreatedAt AS createdAt
+		FROM dbo.Items
+		WHERE LastScannedAt IS NOT NULL
+		ORDER BY LastScannedAt DESC, ItemId DESC
+		OFFSET @off ROWS FETCH NEXT @ps ROWS ONLY",
+		new { off = (p - 1) * ps, ps });
+	return Results.Ok(new
+	{
+		items = rows,
+		page = p,
+		pageSize = ps,
+		total,
+		totalPages = (int)Math.Ceiling(total / (double)ps),
+	});
 });
 
 app.MapPost("/items", async (ItemDto dto) =>
@@ -66,12 +107,19 @@ app.MapPost("/items", async (ItemDto dto) =>
 		new { Name = dto.Name.Trim(), dto.Quantity });
 
 	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/items", JsonSerializer.Serialize(new { dto.Name, dto.Quantity }), 201, "success");
-	return Results.Created($"/items/{id}", new { ItemId = id, Name = dto.Name.Trim(), dto.Quantity });
+	return Results.Created($"/items/{id}", new { id, name = dto.Name.Trim(), quantity = dto.Quantity });
 });
 
 app.MapPut("/items/{id:int}", async (int id, ItemUpdateDto dto) =>
 {
-	if (dto.Quantity < 0) return Results.BadRequest(new { error = "Quantity cannot be negative." });
+	// All fields are optional; only the ones supplied are updated.
+	var trimmedName = dto.Name?.Trim();
+	if (dto.Quantity is null && dto.LowStockThreshold is null && dto.Name is null)
+		return Results.BadRequest(new { error = "Provide quantity, lowStockThreshold, and/or name to update." });
+	if (dto.Quantity is < 0) return Results.BadRequest(new { error = "Quantity cannot be negative." });
+	if (dto.LowStockThreshold is < 0) return Results.BadRequest(new { error = "Low-stock threshold cannot be negative." });
+	if (dto.Name is not null && string.IsNullOrWhiteSpace(trimmedName))
+		return Results.BadRequest(new { error = "Name cannot be empty." });
 
 	using var conn = new SqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
@@ -85,8 +133,17 @@ app.MapPut("/items/{id:int}", async (int id, ItemUpdateDto dto) =>
 		return Results.NotFound(new { error = "Item not found." });
 	}
 
-	await conn.ExecuteAsync("UPDATE dbo.Items SET Quantity = @Quantity WHERE ItemId = @id", new { dto.Quantity, id });
-	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/items/{id}", JsonSerializer.Serialize(new { dto.Quantity }), 204, "success");
+	// COALESCE leaves a column untouched when its parameter is null.
+	// Setting a name also clears the review flag (the item is now resolved).
+	await conn.ExecuteAsync(@"
+		UPDATE dbo.Items
+		SET Quantity = COALESCE(@Quantity, Quantity),
+		    LowStockThreshold = COALESCE(@LowStockThreshold, LowStockThreshold),
+		    Name = COALESCE(@Name, Name),
+		    NeedsReview = CASE WHEN @Name IS NOT NULL THEN 0 ELSE NeedsReview END
+		WHERE ItemId = @id",
+		new { dto.Quantity, dto.LowStockThreshold, Name = trimmedName, id });
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/items/{id}", JsonSerializer.Serialize(new { dto.Quantity, dto.LowStockThreshold, dto.Name }), 204, "success");
 	return Results.NoContent();
 });
 
@@ -107,6 +164,74 @@ app.MapDelete("/items/{id:int}", async (int id, bool? confirm, string? idempoten
 
 	await LogAudit(conn, idempotencyKey, null, "DELETE", $"/items/{id}", null, 204, "success");
 	return Results.NoContent();
+});
+
+// ============================================================
+// Barcode / Products (OpenFoodFacts-backed, locally cached)
+// ============================================================
+
+// Look up a product by barcode. Checks the local Products cache first,
+// then falls back to OpenFoodFacts and caches the result for next time.
+app.MapGet("/products/{barcode}", async (string barcode, IHttpClientFactory httpClientFactory) =>
+{
+	barcode = (barcode ?? "").Trim();
+	if (string.IsNullOrWhiteSpace(barcode) || !barcode.All(char.IsDigit))
+		return Results.BadRequest(new { error = "Barcode must be a non-empty numeric string." });
+
+	using var conn = new SqlConnection(connString);
+	var product = await LookupProductAsync(conn, httpClientFactory, barcode);
+	if (product is null)
+		return Results.NotFound(new { error = "Product not found.", barcode });
+
+	return Results.Ok(ShapeProduct(product));
+});
+
+// Scan a barcode into the pantry. Resolves the product (cache -> OpenFoodFacts),
+// then upserts an Items row keyed by barcode — re-scanning bumps the quantity.
+app.MapPost("/items/scan", async (ScanDto dto, IHttpClientFactory httpClientFactory) =>
+{
+	var barcode = (dto.Barcode ?? "").Trim();
+	if (string.IsNullOrWhiteSpace(barcode) || !barcode.All(char.IsDigit))
+		return Results.BadRequest(new { error = "Barcode must be a non-empty numeric string." });
+
+	var qty = dto.Quantity ?? 1;
+	if (qty < 1) return Results.BadRequest(new { error = "Quantity must be at least 1." });
+
+	using var conn = new SqlConnection(connString);
+	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
+	if (idem is not null) return idem;
+
+	var product = await LookupProductAsync(conn, httpClientFactory, barcode);
+
+	// Fall back to a caller-supplied name (or a placeholder) for unknown barcodes.
+	var name = product?.Name;
+	if (string.IsNullOrWhiteSpace(name)) name = dto.Name?.Trim();
+	// Unresolved: no product match and no caller-supplied name → placeholder + flag for review.
+	var needsReview = string.IsNullOrWhiteSpace(name);
+	if (needsReview) name = $"Product {barcode}";
+
+	// Upsert by barcode: increment if we've scanned this product before.
+	// NeedsReview is only set on first insert; re-scans never re-flag a resolved item.
+	var row = await conn.QueryFirstAsync<ScannedItemRow>(@"
+		MERGE dbo.Items AS target
+		USING (SELECT @Barcode AS Barcode) AS src ON target.Barcode = src.Barcode
+		WHEN MATCHED THEN
+			UPDATE SET Quantity = target.Quantity + @Qty, LastScannedAt = SYSUTCDATETIME()
+		WHEN NOT MATCHED THEN
+			INSERT (Name, Quantity, Barcode, Brand, ImageUrl, NeedsReview, LastScannedAt)
+			VALUES (@Name, @Qty, @Barcode, @Brand, @ImageUrl, @NeedsReview, SYSUTCDATETIME())
+		OUTPUT inserted.ItemId, inserted.Name, inserted.Quantity, inserted.Barcode, inserted.Brand, inserted.ImageUrl, inserted.NeedsReview;",
+		new { Barcode = barcode, Qty = qty, Name = name, Brand = product?.Brand, ImageUrl = product?.ImageUrl, NeedsReview = needsReview });
+
+	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/items/scan",
+		JsonSerializer.Serialize(new { barcode, qty, name }), 200, "success");
+
+	return Results.Ok(new
+	{
+		item = new { itemId = row.ItemId, name = row.Name, quantity = row.Quantity, barcode = row.Barcode, brand = row.Brand, imageUrl = row.ImageUrl, needsReview = row.NeedsReview },
+		product = product is null ? null : ShapeProduct(product),
+		found = product is not null,
+	});
 });
 
 app.MapGet("/agent/context", async () =>
@@ -827,6 +952,40 @@ static async Task EnsureSchemaAsync(string connString)
 				CONSTRAINT [PK_Items] PRIMARY KEY CLUSTERED ([ItemId] ASC)
 			);
 		END;
+
+		-- Barcode-scanning columns on Items (added incrementally for existing DBs).
+		IF COL_LENGTH('dbo.Items', 'LowStockThreshold') IS NULL ALTER TABLE dbo.Items ADD [LowStockThreshold] INT CONSTRAINT [DF_Items_LowStock] DEFAULT (2) NOT NULL;
+		IF COL_LENGTH('dbo.Items', 'NeedsReview') IS NULL ALTER TABLE dbo.Items ADD [NeedsReview] BIT CONSTRAINT [DF_Items_NeedsReview] DEFAULT (0) NOT NULL;
+		IF COL_LENGTH('dbo.Items', 'LastScannedAt') IS NULL
+		BEGIN
+			ALTER TABLE dbo.Items ADD [LastScannedAt] DATETIME2 (7) NULL;
+			-- Backfill previously-scanned items so their history isn't lost.
+			EXEC(N'UPDATE dbo.Items SET LastScannedAt = CreatedAt WHERE Barcode IS NOT NULL AND LastScannedAt IS NULL;');
+		END;
+		IF COL_LENGTH('dbo.Items', 'Barcode') IS NULL ALTER TABLE dbo.Items ADD [Barcode] NVARCHAR (64) NULL;
+		IF COL_LENGTH('dbo.Items', 'Brand') IS NULL ALTER TABLE dbo.Items ADD [Brand] NVARCHAR (200) NULL;
+		IF COL_LENGTH('dbo.Items', 'ImageUrl') IS NULL ALTER TABLE dbo.Items ADD [ImageUrl] NVARCHAR (500) NULL;
+		IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Items_Barcode' AND object_id = OBJECT_ID('dbo.Items'))
+			EXEC(N'CREATE UNIQUE INDEX UX_Items_Barcode ON dbo.Items (Barcode) WHERE Barcode IS NOT NULL;');
+
+		-- Local product cache populated from OpenFoodFacts on first scan.
+		IF OBJECT_ID('dbo.Products', 'U') IS NULL
+		BEGIN
+			CREATE TABLE [dbo].[Products]
+			(
+				[Barcode] NVARCHAR (64) NOT NULL,
+				[Name] NVARCHAR (300) NULL,
+				[Brand] NVARCHAR (200) NULL,
+				[ImageUrl] NVARCHAR (500) NULL,
+				[Categories] NVARCHAR (500) NULL,
+				[PackageSize] NVARCHAR (100) NULL,
+				[Source] NVARCHAR (50) CONSTRAINT [DF_Products_Source] DEFAULT ('openfoodfacts') NOT NULL,
+				[FetchedAt] DATETIME2 (7) CONSTRAINT [DF_Products_FetchedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
+				CONSTRAINT [PK_Products] PRIMARY KEY CLUSTERED ([Barcode] ASC)
+			);
+		END;
+
+		IF COL_LENGTH('dbo.Products', 'NutritionJson') IS NULL ALTER TABLE dbo.Products ADD [NutritionJson] NVARCHAR (MAX) NULL;
 
 		IF OBJECT_ID('dbo.Recipes', 'U') IS NULL
 		BEGIN
@@ -1660,6 +1819,147 @@ async Task<IResult?> CheckIdempotency(System.Data.IDbConnection db, string? idem
 	return existing.HasValue ? Results.Ok(new { idempotent = true }) : null;
 }
 
+// Resolve a barcode to product metadata. Local cache first, then OpenFoodFacts.
+// Successful remote lookups are cached in dbo.Products. Returns null if unknown.
+async Task<ProductInfo?> LookupProductAsync(SqlConnection conn, IHttpClientFactory httpClientFactory, string barcode)
+{
+	var cached = await conn.QueryFirstOrDefaultAsync<ProductInfo>(
+		"SELECT Barcode, Name, Brand, ImageUrl, Categories, PackageSize, NutritionJson, Source FROM dbo.Products WHERE Barcode = @barcode",
+		new { barcode });
+	// Cache is authoritative once it has nutrition; otherwise re-fetch to upgrade the row.
+	if (cached is not null && cached.NutritionJson is not null) return cached with { Source = "cache" };
+
+	try
+	{
+		var http = httpClientFactory.CreateClient();
+		http.Timeout = TimeSpan.FromSeconds(10);
+		http.DefaultRequestHeaders.UserAgent.ParseAdd("PantryScan/1.0 (family pantry app)");
+
+		var url = $"https://world.openfoodfacts.org/api/v2/product/{Uri.EscapeDataString(barcode)}.json"
+			+ "?fields=code,product_name,brands,image_front_url,image_url,quantity,categories,"
+			+ "nutriments,nutriscore_grade,nova_group,serving_size,nutrient_levels";
+		using var doc = JsonDocument.Parse(await http.GetStringAsync(url));
+		var root = doc.RootElement;
+
+		if (!root.TryGetProperty("status", out var status) || status.GetInt32() != 1)
+			return cached; // OFF has no record — fall back to whatever we cached before (may be null)
+		if (!root.TryGetProperty("product", out var p))
+			return cached;
+
+		var name = GetStringProp(p, "product_name");
+		var brand = GetStringProp(p, "brands");
+		var imageUrl = GetStringProp(p, "image_front_url") ?? GetStringProp(p, "image_url");
+		var categories = GetStringProp(p, "categories");
+		var packageSize = GetStringProp(p, "quantity");
+
+		// OpenFoodFacts sometimes returns a record with no usable name; treat as unknown.
+		if (string.IsNullOrWhiteSpace(name)) name = null;
+
+		// brands/categories can be long comma-separated lists — keep it to the first entry.
+		brand = brand?.Split(',')[0].Trim();
+		var primaryCategory = categories?.Split(',').Select(c => c.Trim()).LastOrDefault(c => c.Length > 0);
+		var nutritionJson = BuildNutritionJson(p);
+
+		var info = new ProductInfo(barcode, name, brand, Truncate(imageUrl, 500),
+			Truncate(primaryCategory, 500), Truncate(packageSize, 100), nutritionJson, "openfoodfacts");
+
+		// Upsert: insert new products, or upgrade a previously-cached row with nutrition.
+		await conn.ExecuteAsync(@"
+			MERGE dbo.Products AS t
+			USING (SELECT @Barcode AS Barcode) AS s ON t.Barcode = s.Barcode
+			WHEN MATCHED THEN UPDATE SET
+				Name = @Name, Brand = @Brand, ImageUrl = @ImageUrl, Categories = @Categories,
+				PackageSize = @PackageSize, NutritionJson = @NutritionJson, FetchedAt = SYSUTCDATETIME()
+			WHEN NOT MATCHED THEN
+				INSERT (Barcode, Name, Brand, ImageUrl, Categories, PackageSize, NutritionJson, Source)
+				VALUES (@Barcode, @Name, @Brand, @ImageUrl, @Categories, @PackageSize, @NutritionJson, @Source);",
+			info);
+
+		return info;
+	}
+	catch
+	{
+		// Network/parse failure — fall back to any cached row so the caller still gets data.
+		return cached;
+	}
+}
+
+// Extract a compact per-100g nutrition summary (+ grades) from an OFF product node.
+// Returns null when the product carries no usable nutrition data.
+static string? BuildNutritionJson(JsonElement product)
+{
+	double? Num(JsonElement obj, string key) =>
+		obj.ValueKind == JsonValueKind.Object && obj.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number
+			? v.GetDouble() : null;
+
+	JsonElement nutr = product.TryGetProperty("nutriments", out var n) ? n : default;
+
+	var energyKcal = Num(nutr, "energy-kcal_100g") ?? Num(nutr, "energy-kcal");
+	var fat = Num(nutr, "fat_100g");
+	var satFat = Num(nutr, "saturated-fat_100g");
+	var carbs = Num(nutr, "carbohydrates_100g");
+	var sugars = Num(nutr, "sugars_100g");
+	var fiber = Num(nutr, "fiber_100g");
+	var proteins = Num(nutr, "proteins_100g");
+	var salt = Num(nutr, "salt_100g");
+	var sodium = Num(nutr, "sodium_100g");
+
+	var grade = GetStringProp(product, "nutriscore_grade");
+	int? nova = product.TryGetProperty("nova_group", out var ng) && ng.ValueKind == JsonValueKind.Number ? ng.GetInt32() : null;
+	var servingSize = GetStringProp(product, "serving_size");
+
+	object? levels = null;
+	if (product.TryGetProperty("nutrient_levels", out var nl) && nl.ValueKind == JsonValueKind.Object)
+		levels = JsonSerializer.Deserialize<Dictionary<string, string>>(nl.GetRawText());
+
+	// Nothing worth storing?
+	if (energyKcal is null && fat is null && carbs is null && proteins is null && grade is null && nova is null)
+		return null;
+
+	return JsonSerializer.Serialize(new
+	{
+		servingSize,
+		nutriscoreGrade = grade,
+		novaGroup = nova,
+		energyKcal100g = energyKcal,
+		fat100g = fat,
+		saturatedFat100g = satFat,
+		carbohydrates100g = carbs,
+		sugars100g = sugars,
+		fiber100g = fiber,
+		proteins100g = proteins,
+		salt100g = salt,
+		sodium100g = sodium,
+		nutrientLevels = levels,
+	});
+}
+
+static string? Truncate(string? s, int max) =>
+	string.IsNullOrEmpty(s) ? s : (s.Length <= max ? s : s[..max]);
+
+// Shape a ProductInfo for JSON responses: parse the stored NutritionJson blob
+// into a real nested object instead of leaking it as an escaped string.
+static object ShapeProduct(ProductInfo p)
+{
+	object? nutrition = null;
+	if (!string.IsNullOrEmpty(p.NutritionJson))
+	{
+		try { nutrition = JsonSerializer.Deserialize<JsonElement>(p.NutritionJson); }
+		catch { nutrition = null; }
+	}
+	return new
+	{
+		barcode = p.Barcode,
+		name = p.Name,
+		brand = p.Brand,
+		imageUrl = p.ImageUrl,
+		categories = p.Categories,
+		packageSize = p.PackageSize,
+		source = p.Source,
+		nutrition,
+	};
+}
+
 static JsonElement? FindRecipeNode(JsonElement root)
 {
 	if (root.ValueKind == JsonValueKind.Object)
@@ -1724,7 +2024,10 @@ static string? GetStringOrFirstArray(JsonElement el, string key)
 
 record AuditDto(string? ActionId, string? Actor, string? Source, string? RequestedAtUtc);
 record ItemDto(string Name, int Quantity, string? IdempotencyKey = null, AuditDto? Audit = null);
-record ItemUpdateDto(int Quantity, string? IdempotencyKey = null, AuditDto? Audit = null);
+record ItemUpdateDto(int? Quantity = null, int? LowStockThreshold = null, string? Name = null, string? IdempotencyKey = null, AuditDto? Audit = null);
+record ScanDto(string Barcode, int? Quantity = null, string? Name = null, string? IdempotencyKey = null, AuditDto? Audit = null);
+record ProductInfo(string Barcode, string? Name, string? Brand, string? ImageUrl, string? Categories, string? PackageSize, string? NutritionJson, string Source);
+record ScannedItemRow(int ItemId, string Name, int Quantity, string? Barcode, string? Brand, string? ImageUrl, bool NeedsReview);
 record RecipeCreateDto(
 	string Name,
 	string? Course,

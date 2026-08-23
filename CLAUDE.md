@@ -58,10 +58,14 @@ PantryScan/
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Health check |
-| GET | `/items` | List all pantry items |
+| GET | `/items` | List all pantry items (incl. `lowStockThreshold`, `needsReview`, barcode/brand/imageUrl) |
+| GET | `/items/review` | List items scanned without a resolved name (`NeedsReview = 1`) |
+| GET | `/items/recent` | Paginated scan history `?page=&pageSize=` (default 20), most-recently-scanned first (`LastScannedAt`) |
 | POST | `/items` | Add a pantry item `{ name, quantity }` |
-| PUT | `/items/{id}` | Update item `{ quantity }` |
+| PUT | `/items/{id}` | Update item — any of `{ quantity?, lowStockThreshold?, name? }`; setting `name` clears the review flag |
 | DELETE | `/items/{id}` | Remove item |
+| GET | `/products/{barcode}` | Look up a product by barcode (local `Products` cache → OpenFoodFacts, then caches). Returns name/brand/image + `nutrition` (per-100g values, Nutri-Score, NOVA, nutrient levels) |
+| POST | `/items/scan` | Scan a barcode into the pantry `{ barcode, quantity?, name? }` — upserts by barcode (increments qty) |
 | GET | `/recipes` | List all recipes |
 | POST | `/recipes` | Create recipe |
 | PUT | `/recipes/{id}` | Update recipe |

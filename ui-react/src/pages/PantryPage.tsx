@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react';
 import { pantryApi, type PantryItem } from '../services/api';
+import NutritionModal from '../components/NutritionModal';
 
 type Tab = 'add' | 'inventory';
+type SortBy = 'recent' | 'name' | 'qty-desc' | 'qty-asc';
+type FilterMode = 'all' | 'low' | 'scanned';
 
 export default function PantryPage() {
   const [items, setItems] = useState<PantryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>('add');
+  const [tab, setTab] = useState<Tab>('inventory');
   const [status, setStatus] = useState<{ msg: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState<SortBy>('recent');
+  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [editMode, setEditMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<PantryItem | null>(null);
 
   // Form fields
   const [name, setName] = useState('');
@@ -57,17 +65,86 @@ export default function PantryPage() {
     try {
       await pantryApi.remove(id);
       setItems(prev => prev.filter(i => i.id !== id));
+      setSelectedIds(prev => { const n = new Set(prev); n.delete(id); return n; });
       showStatus('Item removed.', 'success');
     } catch {
       showStatus('Failed to remove item.', 'error');
     }
   }
 
-  const filtered = items.filter(i =>
-    i.name.toLowerCase().includes(search.toLowerCase())
-  );
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
 
-  const lowStock = items.filter(i => i.quantity <= 2).length;
+  function toggleEditMode() {
+    setEditMode(v => {
+      if (v) setSelectedIds(new Set()); // clear selection when leaving edit mode
+      return !v;
+    });
+  }
+
+  async function handleDeleteSelected() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} item${ids.length > 1 ? 's' : ''} from your pantry?`)) return;
+
+    const results = await Promise.allSettled(ids.map(id => pantryApi.remove(id)));
+    const deleted = ids.filter((_, idx) => results[idx].status === 'fulfilled');
+    const failed = ids.length - deleted.length;
+
+    setItems(prev => prev.filter(i => !deleted.includes(i.id)));
+    setSelectedIds(new Set());
+    if (failed === 0) showStatus(`Deleted ${deleted.length} item${deleted.length > 1 ? 's' : ''}.`, 'success');
+    else showStatus(`Deleted ${deleted.length}, but ${failed} failed.`, 'error');
+  }
+
+  async function patchItem(id: number, patch: Partial<PantryItem>, failMsg: string) {
+    const prevItems = items;
+    // Optimistic update so the controls feel instant.
+    setItems(prev => prev.map(i => (i.id === id ? { ...i, ...patch } : i)));
+    setSelected(sel => (sel && sel.id === id ? { ...sel, ...patch } : sel));
+    try {
+      await pantryApi.update(id, patch);
+    } catch {
+      setItems(prevItems); // roll back on failure
+      showStatus(failMsg, 'error');
+    }
+  }
+
+  function handleSetQuantity(id: number, newQty: number) {
+    if (isNaN(newQty) || newQty < 0) return;
+    patchItem(id, { quantity: newQty }, 'Failed to update quantity.');
+  }
+
+  function handleSetThreshold(id: number, threshold: number) {
+    if (isNaN(threshold) || threshold < 0) return;
+    patchItem(id, { lowStockThreshold: threshold }, 'Failed to update low-stock level.');
+  }
+
+  const isLow = (i: PantryItem) => i.quantity <= (i.lowStockThreshold ?? 2);
+
+  const lowStock = items.filter(isLow).length;
+  const scannedCount = items.filter(i => !!i.barcode).length;
+
+  const filtered = items
+    .filter(i => i.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(i => {
+      if (filterMode === 'low') return isLow(i);
+      if (filterMode === 'scanned') return !!i.barcode;
+      return true;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'name': return a.name.localeCompare(b.name);
+        case 'qty-desc': return b.quantity - a.quantity;
+        case 'qty-asc': return a.quantity - b.quantity;
+        default: return b.id - a.id; // recent first (matches API order)
+      }
+    });
 
   return (
     <div className="container">
@@ -148,14 +225,64 @@ export default function PantryPage() {
           <h2 style={{ color: 'var(--accent-light)', marginBottom: '1.5rem' }}>
             Current Inventory
           </h2>
-          <div className="form-group">
-            <input
-              className="form-control"
-              type="text"
-              placeholder="Search inventory..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div className="form-row" style={{ alignItems: 'flex-end' }}>
+            <div className="form-group" style={{ flex: 2 }}>
+              <label htmlFor="invSearch">Search</label>
+              <input
+                id="invSearch"
+                className="form-control"
+                type="text"
+                placeholder="Search inventory..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label htmlFor="invSort">Sort by</label>
+              <select id="invSort" className="form-control" value={sortBy} onChange={e => setSortBy(e.target.value as SortBy)}>
+                <option value="recent">Recently added</option>
+                <option value="name">Name (A–Z)</option>
+                <option value="qty-desc">Quantity (high → low)</option>
+                <option value="qty-asc">Quantity (low → high)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', margin: '0.25rem 0 1rem' }}>
+            {([
+              ['all', `All (${items.length})`],
+              ['low', `Low stock (${lowStock})`],
+              ['scanned', `Scanned (${scannedCount})`],
+            ] as [FilterMode, string][]).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                className={`nav-tab${filterMode === mode ? ' active' : ''}`}
+                style={{ padding: '0.35rem 0.9rem', fontSize: '0.85rem' }}
+                onClick={() => setFilterMode(mode)}
+              >
+                {label}
+              </button>
+            ))}
+            {editMode && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                style={{ marginLeft: 'auto', padding: '0.35rem 1rem', fontSize: '0.85rem' }}
+                disabled={selectedIds.size === 0}
+                onClick={handleDeleteSelected}
+              >
+                Delete selected ({selectedIds.size})
+              </button>
+            )}
+            <button
+              type="button"
+              className={`btn${editMode ? '' : ' btn-secondary'}`}
+              style={{ marginLeft: editMode ? '0.5rem' : 'auto', padding: '0.35rem 1rem', fontSize: '0.85rem' }}
+              onClick={toggleEditMode}
+            >
+              {editMode ? 'Done' : 'Edit'}
+            </button>
           </div>
           {loading ? (
             <div className="loading">Loading inventory</div>
@@ -169,24 +296,110 @@ export default function PantryPage() {
                 <div
                   key={item.id}
                   className="card"
-                  style={item.quantity <= 2 ? { borderColor: 'var(--warning)' } : {}}
+                  onClick={() => (editMode ? toggleSelect(item.id) : setSelected(item))}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter') editMode ? toggleSelect(item.id) : setSelected(item); }}
+                  title={editMode ? 'Click to select' : 'View nutrition & details'}
+                  style={{
+                    cursor: 'pointer',
+                    ...(selectedIds.has(item.id)
+                      ? { borderColor: 'var(--accent)', boxShadow: '0 0 0 1px var(--accent)' }
+                      : isLow(item) ? { borderColor: 'var(--warning)' } : {}),
+                  }}
                 >
-                  <h4>{item.name}</h4>
-                  <div className="details">
-                    <p>Quantity: <strong>{item.quantity}</strong>
-                      {item.quantity <= 2 && <span style={{ color: 'var(--warning)', marginLeft: '0.5rem' }}>Low stock</span>}
-                    </p>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
+                    {editMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(item.id)}
+                        onClick={e => e.stopPropagation()}
+                        onChange={() => toggleSelect(item.id)}
+                        aria-label={`Select ${item.name}`}
+                        style={{ width: 18, height: 18, marginTop: 4, flexShrink: 0, cursor: 'pointer' }}
+                      />
+                    )}
+                    {item.imageUrl && (
+                      <img
+                        src={item.imageUrl}
+                        alt=""
+                        style={{ width: 64, height: 64, objectFit: 'contain', background: '#fff', borderRadius: 6, flexShrink: 0 }}
+                      />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h4 style={{ margin: 0 }}>{item.name}</h4>
+                      {item.brand && (
+                        <div style={{ color: 'var(--accent-lighter)', fontSize: '0.85rem' }}>{item.brand}</div>
+                      )}
+                      {item.barcode && (
+                        <div style={{ color: 'var(--muted)', fontSize: '0.75rem' }}>#{item.barcode}</div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <button className="btn btn-danger" onClick={() => handleRemove(item.id)}>
-                      Remove
-                    </button>
+                  <div className="details" onClick={editMode ? e => e.stopPropagation() : undefined}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ color: 'var(--text)' }}>Quantity:</span>
+                      {editMode ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <button
+                            type="button"
+                            className="qty-btn"
+                            aria-label="Decrease quantity"
+                            disabled={item.quantity <= 0}
+                            onClick={() => handleSetQuantity(item.id, item.quantity - 1)}
+                          >
+                            −
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            className="form-control qty-input"
+                            value={item.quantity}
+                            onChange={e => handleSetQuantity(item.id, parseInt(e.target.value, 10))}
+                            style={{ width: '3.5rem', textAlign: 'center', padding: '0.3rem' }}
+                          />
+                          <button
+                            type="button"
+                            className="qty-btn"
+                            aria-label="Increase quantity"
+                            onClick={() => handleSetQuantity(item.id, item.quantity + 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <strong style={{ color: 'var(--text-bright)' }}>{item.quantity}</strong>
+                      )}
+                      {isLow(item) && <span style={{ color: 'var(--warning)', marginLeft: '0.25rem' }}>Low stock</span>}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: 'var(--accent-light)', fontSize: '0.8rem' }}>
+                      {editMode ? 'Click card to select' : item.barcode ? 'View nutrition →' : 'Details →'}
+                    </span>
+                    {editMode && (
+                      <button
+                        className="btn btn-danger"
+                        onClick={e => { e.stopPropagation(); handleRemove(item.id); }}
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      )}
+
+      {selected && (
+        <NutritionModal
+          item={selected}
+          onClose={() => setSelected(null)}
+          onSetQuantity={q => handleSetQuantity(selected.id, q)}
+          onSetThreshold={t => handleSetThreshold(selected.id, t)}
+        />
       )}
     </div>
   );
