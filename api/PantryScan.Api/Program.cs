@@ -1,5 +1,5 @@
 using Dapper;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -38,22 +38,22 @@ app.MapGet("/", () => "PantryScan API running");
 
 app.MapGet("/items", async () =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var rows = await conn.QueryAsync(@"
-		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS lowStockThreshold,
-		       NeedsReview AS needsReview, Barcode AS barcode, Brand AS brand, ImageUrl AS imageUrl, CreatedAt AS createdAt
-		FROM dbo.Items ORDER BY ItemId DESC");
+		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS ""lowStockThreshold"",
+		       NeedsReview AS ""needsReview"", Barcode AS barcode, Brand AS brand, ImageUrl AS ""imageUrl"", CreatedAt AS ""createdAt""
+		FROM Items ORDER BY ItemId DESC");
 	return Results.Ok(rows);
 });
 
 // Items scanned without a resolved product name — awaiting a manual name.
 app.MapGet("/items/review", async () =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var rows = await conn.QueryAsync(@"
-		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS lowStockThreshold,
-		       NeedsReview AS needsReview, Barcode AS barcode, Brand AS brand, ImageUrl AS imageUrl, CreatedAt AS createdAt
-		FROM dbo.Items WHERE NeedsReview = 1 ORDER BY ItemId DESC");
+		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS ""lowStockThreshold"",
+		       NeedsReview AS ""needsReview"", Barcode AS barcode, Brand AS brand, ImageUrl AS ""imageUrl"", CreatedAt AS ""createdAt""
+		FROM Items WHERE NeedsReview = TRUE ORDER BY ItemId DESC");
 	return Results.Ok(rows);
 });
 
@@ -62,14 +62,14 @@ app.MapGet("/items/recent", async (int? page, int? pageSize) =>
 {
 	var p = Math.Max(1, page ?? 1);
 	var ps = Math.Clamp(pageSize ?? 20, 1, 100);
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var total = await conn.ExecuteScalarAsync<int>(
-		"SELECT COUNT(1) FROM dbo.Items WHERE LastScannedAt IS NOT NULL");
+		"SELECT COUNT(1) FROM Items WHERE LastScannedAt IS NOT NULL");
 	var rows = await conn.QueryAsync(@"
-		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS lowStockThreshold,
-		       NeedsReview AS needsReview, Barcode AS barcode, Brand AS brand, ImageUrl AS imageUrl,
-		       LastScannedAt AS lastScannedAt, CreatedAt AS createdAt
-		FROM dbo.Items
+		SELECT ItemId AS id, Name AS name, Quantity AS quantity, LowStockThreshold AS ""lowStockThreshold"",
+		       NeedsReview AS ""needsReview"", Barcode AS barcode, Brand AS brand, ImageUrl AS ""imageUrl"",
+		       LastScannedAt AS ""lastScannedAt"", CreatedAt AS ""createdAt""
+		FROM Items
 		WHERE LastScannedAt IS NOT NULL
 		ORDER BY LastScannedAt DESC, ItemId DESC
 		OFFSET @off ROWS FETCH NEXT @ps ROWS ONLY",
@@ -89,13 +89,13 @@ app.MapGet("/items/recent", async (int? page, int? pageSize) =>
 app.MapGet("/items/export", async (bool? extended) =>
 {
 	var ext = extended == true;
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var rows = await conn.QueryAsync<ItemExportRow>(@"
 		SELECT i.Name, i.Quantity, i.LowStockThreshold, i.Barcode, i.Brand, i.NeedsReview,
 		       i.LastScannedAt, i.CreatedAt, i.ImageUrl,
 		       p.Categories, p.PackageSize, p.NutritionJson
-		FROM dbo.Items i
-		LEFT JOIN dbo.Products p ON p.Barcode = i.Barcode
+		FROM Items i
+		LEFT JOIN Products p ON p.Barcode = i.Barcode
 		ORDER BY i.Name");
 
 	var baseHeaders = new[] { "Name", "Quantity", "LowStockThreshold", "Barcode", "Brand", "NeedsReview", "LastScannedAt (UTC)", "CreatedAt (UTC)" };
@@ -136,7 +136,7 @@ app.MapGet("/items/export", async (bool? extended) =>
 
 app.MapPost("/items", async (ItemDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -154,8 +154,7 @@ app.MapPost("/items", async (ItemDto dto) =>
 	}
 
 	var id = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.Items(Name, Quantity) VALUES (@Name, @Quantity);
-		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		INSERT INTO Items(Name, Quantity) VALUES (@Name, @Quantity) RETURNING ItemId;",
 		new { Name = dto.Name.Trim(), dto.Quantity });
 
 	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/items", JsonSerializer.Serialize(new { dto.Name, dto.Quantity }), 201, "success");
@@ -173,11 +172,11 @@ app.MapPut("/items/{id:int}", async (int id, ItemUpdateDto dto) =>
 	if (dto.Name is not null && string.IsNullOrWhiteSpace(trimmedName))
 		return Results.BadRequest(new { error = "Name cannot be empty." });
 
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
-	var exists = await conn.ExecuteScalarAsync<int?>("SELECT ItemId FROM dbo.Items WHERE ItemId = @id", new { id });
+	var exists = await conn.ExecuteScalarAsync<int?>("SELECT ItemId FROM Items WHERE ItemId = @id", new { id });
 	if (exists is null)
 	{
 		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
@@ -188,7 +187,7 @@ app.MapPut("/items/{id:int}", async (int id, ItemUpdateDto dto) =>
 	// COALESCE leaves a column untouched when its parameter is null.
 	// Setting a name also clears the review flag (the item is now resolved).
 	await conn.ExecuteAsync(@"
-		UPDATE dbo.Items
+		UPDATE Items
 		SET Quantity = COALESCE(@Quantity, Quantity),
 		    LowStockThreshold = COALESCE(@LowStockThreshold, LowStockThreshold),
 		    Name = COALESCE(@Name, Name),
@@ -202,11 +201,11 @@ app.MapPut("/items/{id:int}", async (int id, ItemUpdateDto dto) =>
 app.MapDelete("/items/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
 	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
 
-	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.Items WHERE ItemId = @id", new { id });
+	var deleted = await conn.ExecuteAsync("DELETE FROM Items WHERE ItemId = @id", new { id });
 	if (deleted == 0)
 	{
 		if (!string.IsNullOrWhiteSpace(idempotencyKey))
@@ -230,7 +229,7 @@ app.MapGet("/products/{barcode}", async (string barcode, IHttpClientFactory http
 	if (string.IsNullOrWhiteSpace(barcode) || !barcode.All(char.IsDigit))
 		return Results.BadRequest(new { error = "Barcode must be a non-empty numeric string." });
 
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var product = await LookupProductAsync(conn, httpClientFactory, barcode);
 	if (product is null)
 		return Results.NotFound(new { error = "Product not found.", barcode });
@@ -249,7 +248,7 @@ app.MapPost("/items/scan", async (ScanDto dto, IHttpClientFactory httpClientFact
 	var qty = dto.Quantity ?? 1;
 	if (qty < 1) return Results.BadRequest(new { error = "Quantity must be at least 1." });
 
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -265,14 +264,12 @@ app.MapPost("/items/scan", async (ScanDto dto, IHttpClientFactory httpClientFact
 	// Upsert by barcode: increment if we've scanned this product before.
 	// NeedsReview is only set on first insert; re-scans never re-flag a resolved item.
 	var row = await conn.QueryFirstAsync<ScannedItemRow>(@"
-		MERGE dbo.Items AS target
-		USING (SELECT @Barcode AS Barcode) AS src ON target.Barcode = src.Barcode
-		WHEN MATCHED THEN
-			UPDATE SET Quantity = target.Quantity + @Qty, LastScannedAt = SYSUTCDATETIME()
-		WHEN NOT MATCHED THEN
-			INSERT (Name, Quantity, Barcode, Brand, ImageUrl, NeedsReview, LastScannedAt)
-			VALUES (@Name, @Qty, @Barcode, @Brand, @ImageUrl, @NeedsReview, SYSUTCDATETIME())
-		OUTPUT inserted.ItemId, inserted.Name, inserted.Quantity, inserted.Barcode, inserted.Brand, inserted.ImageUrl, inserted.NeedsReview;",
+		INSERT INTO Items (Name, Quantity, Barcode, Brand, ImageUrl, NeedsReview, LastScannedAt)
+		VALUES (@Name, @Qty, @Barcode, @Brand, @ImageUrl, @NeedsReview, (NOW() AT TIME ZONE 'utc'))
+		ON CONFLICT (Barcode) WHERE Barcode IS NOT NULL DO UPDATE SET
+			Quantity = Items.Quantity + @Qty,
+			LastScannedAt = (NOW() AT TIME ZONE 'utc')
+		RETURNING ItemId, Name, Quantity, Barcode, Brand, ImageUrl, NeedsReview;",
 		new { Barcode = barcode, Qty = qty, Name = name, Brand = product?.Brand, ImageUrl = product?.ImageUrl, NeedsReview = needsReview });
 
 	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/items/scan",
@@ -288,21 +285,21 @@ app.MapPost("/items/scan", async (ScanDto dto, IHttpClientFactory httpClientFact
 
 app.MapGet("/agent/context", async () =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	await conn.OpenAsync();
 
-	var itemsCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Items;");
-	var recipesCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Recipes;");
-	var mealPlansCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.MealPlanEntries;");
-	var shoppingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.ShoppingItems;");
-	var calendarCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.CalendarEvents;");
-	var todosCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Todos;");
-	var openTodosCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Todos WHERE IsCompleted = 0;");
+	var itemsCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Items;");
+	var recipesCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Recipes;");
+	var mealPlansCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM MealPlanEntries;");
+	var shoppingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM ShoppingItems;");
+	var calendarCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM CalendarEvents;");
+	var todosCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Todos;");
+	var openTodosCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Todos WHERE IsCompleted = FALSE;");
 	var auditRow = await conn.QueryFirstOrDefaultAsync(@"
 		SELECT
 			COUNT(*) AS total,
-			SUM(CASE WHEN CreatedAt >= DATEADD(hour,-24,GETUTCDATE()) THEN 1 ELSE 0 END) AS last24h
-		FROM dbo.AuditLog;");
+			SUM(CASE WHEN CreatedAt >= ((NOW() AT TIME ZONE 'utc') - INTERVAL '24 hours') THEN 1 ELSE 0 END) AS last24h
+		FROM AuditLog;");
 
 	return Results.Ok(new
 	{
@@ -419,7 +416,7 @@ app.MapGet("/agent/schema", () =>
 
 app.MapGet("/recipes", async () =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var rows = await conn.QueryAsync<dynamic>(@"
 		SELECT
 			RecipeId,
@@ -437,7 +434,7 @@ app.MapGet("/recipes", async () =>
 			Comments,
 			ImageUrl,
 			CreatedAt
-		FROM dbo.Recipes
+		FROM Recipes
 		ORDER BY RecipeId DESC");
 
 	var result = rows.Select(r =>
@@ -493,7 +490,7 @@ app.MapGet("/recipes", async () =>
 
 app.MapPost("/recipes", async (HttpContext ctx) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 
 	// Read the request body to determine which format we're dealing with
 	ctx.Request.EnableBuffering();
@@ -519,9 +516,8 @@ app.MapPost("/recipes", async (HttpContext ctx) =>
 		var tags = dto.Tags ?? [];
 
 		var id = await conn.ExecuteScalarAsync<int>(@"
-			INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
-			VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
-			SELECT CAST(SCOPE_IDENTITY() AS int);",
+			INSERT INTO Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
+			VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl) RETURNING RecipeId;",
 			new
 			{
 				Name = title,
@@ -569,9 +565,8 @@ app.MapPost("/recipes", async (HttpContext ctx) =>
 			: (DateTime?)null;
 
 		var id = await conn.ExecuteScalarAsync<int>(@"
-			INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
-			VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
-			SELECT CAST(SCOPE_IDENTITY() AS int);",
+			INSERT INTO Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
+			VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl) RETURNING RecipeId;",
 			new
 			{
 				Name = name,
@@ -596,7 +591,7 @@ app.MapPost("/recipes", async (HttpContext ctx) =>
 
 app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -627,11 +622,9 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 			: (DateTime?)null;
 
 		await conn.ExecuteAsync(@"
-			IF NOT EXISTS (SELECT 1 FROM dbo.Recipes WHERE Name = @Name)
-			BEGIN
-				INSERT INTO dbo.Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
-				VALUES (@Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl);
-			END",
+			INSERT INTO Recipes(Name, Course, Cuisine, Source, TagsJson, Rating, AddedAt, Servings, CookMinutes, IngredientsJson, StepsJson, Comments, ImageUrl)
+			SELECT @Name, @Course, @Cuisine, @Source, @TagsJson, @Rating, @AddedAt, @Servings, @CookMinutes, @IngredientsJson, @StepsJson, @Comments, @ImageUrl
+			WHERE NOT EXISTS (SELECT 1 FROM Recipes WHERE Name = @Name)",
 			new
 			{
 				Name = name,
@@ -659,11 +652,11 @@ app.MapPost("/recipes/bulk", async (RecipeBulkCreateDto dto) =>
 
 app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
-	var exists = await conn.ExecuteScalarAsync<int?>("SELECT RecipeId FROM dbo.Recipes WHERE RecipeId = @id", new { id });
+	var exists = await conn.ExecuteScalarAsync<int?>("SELECT RecipeId FROM Recipes WHERE RecipeId = @id", new { id });
 	if (exists is null)
 	{
 		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
@@ -694,7 +687,7 @@ app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
 
 	if (setClauses.Count == 0) return Results.NoContent();
 
-	await conn.ExecuteAsync($"UPDATE dbo.Recipes SET {string.Join(", ", setClauses)} WHERE RecipeId = @id", parameters);
+	await conn.ExecuteAsync($"UPDATE Recipes SET {string.Join(", ", setClauses)} WHERE RecipeId = @id", parameters);
 	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PATCH", $"/recipes/{id}", null, 204, "success");
 	return Results.NoContent();
 });
@@ -702,11 +695,11 @@ app.MapPatch("/recipes/{id:int}", async (int id, RecipePatchDto dto) =>
 app.MapDelete("/recipes/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
 	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
 
-	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.Recipes WHERE RecipeId = @id", new { id });
+	var deleted = await conn.ExecuteAsync("DELETE FROM Recipes WHERE RecipeId = @id", new { id });
 	if (deleted == 0)
 	{
 		if (!string.IsNullOrWhiteSpace(idempotencyKey))
@@ -745,25 +738,25 @@ app.MapGet("/recipes/find-image", async (string name) =>
 
 app.MapGet("/meal-plans", async (string? from, string? to) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	if (!string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to)
 		&& DateTime.TryParse(from, out var fromDate) && DateTime.TryParse(to, out var toDate))
 	{
 		var rows = await conn.QueryAsync(
-			"SELECT MealPlanEntryId, PlanDate, MealType, RecipeId, RecipeName, Notes, CreatedAt FROM dbo.MealPlanEntries WHERE PlanDate >= @From AND PlanDate <= @To ORDER BY PlanDate ASC, MealPlanEntryId ASC",
+			"SELECT MealPlanEntryId, PlanDate, MealType, RecipeId, RecipeName, Notes, CreatedAt FROM MealPlanEntries WHERE PlanDate >= @From AND PlanDate <= @To ORDER BY PlanDate ASC, MealPlanEntryId ASC",
 			new { From = fromDate.Date, To = toDate.Date });
 		return Results.Ok(rows);
 	}
 	else
 	{
-		var rows = await conn.QueryAsync("SELECT MealPlanEntryId, PlanDate, MealType, RecipeId, RecipeName, Notes, CreatedAt FROM dbo.MealPlanEntries ORDER BY PlanDate DESC, MealPlanEntryId DESC");
+		var rows = await conn.QueryAsync("SELECT MealPlanEntryId, PlanDate, MealType, RecipeId, RecipeName, Notes, CreatedAt FROM MealPlanEntries ORDER BY PlanDate DESC, MealPlanEntryId DESC");
 		return Results.Ok(rows);
 	}
 });
 
 app.MapPost("/meal-plans", async (MealPlanEntryCreateDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -792,23 +785,26 @@ app.MapPost("/meal-plans", async (MealPlanEntryCreateDto dto) =>
 		var planDateValue = dto.PlanDate.ToDateTime(TimeOnly.MinValue);
 
 		var id = await conn.ExecuteScalarAsync<int>(@"
-			DECLARE @ExistingId INT = (
-				SELECT TOP 1 MealPlanEntryId FROM dbo.MealPlanEntries
+			WITH existing AS (
+				SELECT MealPlanEntryId FROM MealPlanEntries
 				WHERE PlanDate = @PlanDate AND MealType = 'Notes'
 				ORDER BY MealPlanEntryId DESC
-			);
-
-			IF @ExistingId IS NULL
-			BEGIN
-				INSERT INTO dbo.MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
-				VALUES (@PlanDate, 'Notes', NULL, 'Note', @Notes);
-				SELECT CAST(SCOPE_IDENTITY() AS int);
-			END
-			ELSE
-			BEGIN
-				UPDATE dbo.MealPlanEntries SET Notes = @Notes WHERE MealPlanEntryId = @ExistingId;
-				SELECT @ExistingId;
-			END",
+				LIMIT 1
+			),
+			updated AS (
+				UPDATE MealPlanEntries SET Notes = @Notes
+				WHERE MealPlanEntryId IN (SELECT MealPlanEntryId FROM existing)
+				RETURNING MealPlanEntryId
+			),
+			inserted AS (
+				INSERT INTO MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
+				SELECT @PlanDate, 'Notes', NULL, 'Note', @Notes
+				WHERE NOT EXISTS (SELECT 1 FROM existing)
+				RETURNING MealPlanEntryId
+			)
+			SELECT MealPlanEntryId FROM updated
+			UNION ALL
+			SELECT MealPlanEntryId FROM inserted",
 			new { PlanDate = planDateValue, Notes = dto.Notes?.Trim() });
 
 		await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "POST", "/meal-plans", JsonSerializer.Serialize(new { dto.PlanDate, mealType }), 201, "success");
@@ -824,22 +820,21 @@ app.MapPost("/meal-plans", async (MealPlanEntryCreateDto dto) =>
 	var entryDateValue = dto.PlanDate.ToDateTime(TimeOnly.MinValue);
 
 	var entryId = await conn.ExecuteScalarAsync<int>(@"
-		DECLARE @ExistingId INT = (
-			SELECT TOP 1 MealPlanEntryId FROM dbo.MealPlanEntries
+		WITH existing AS (
+			SELECT MealPlanEntryId FROM MealPlanEntries
 			WHERE PlanDate = @PlanDate AND MealType = @MealType AND RecipeName = @RecipeName
 			ORDER BY MealPlanEntryId DESC
-		);
-
-		IF @ExistingId IS NULL
-		BEGIN
-			INSERT INTO dbo.MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
-			VALUES (@PlanDate, @MealType, @RecipeId, @RecipeName, @Notes);
-			SELECT CAST(SCOPE_IDENTITY() AS int);
-		END
-		ELSE
-		BEGIN
-			SELECT @ExistingId;
-		END",
+			LIMIT 1
+		),
+		inserted AS (
+			INSERT INTO MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
+			SELECT @PlanDate, @MealType, @RecipeId, @RecipeName, @Notes
+			WHERE NOT EXISTS (SELECT 1 FROM existing)
+			RETURNING MealPlanEntryId
+		)
+		SELECT MealPlanEntryId FROM existing
+		UNION ALL
+		SELECT MealPlanEntryId FROM inserted",
 		new
 		{
 			PlanDate = entryDateValue,
@@ -855,7 +850,7 @@ app.MapPost("/meal-plans", async (MealPlanEntryCreateDto dto) =>
 
 app.MapPost("/meal-plans/bulk", async (MealPlanBulkCreateDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -880,15 +875,14 @@ app.MapPost("/meal-plans/bulk", async (MealPlanBulkCreateDto dto) =>
 		{
 			if (string.IsNullOrWhiteSpace(entry.Notes)) continue;
 			await conn.ExecuteAsync(@"
-				IF NOT EXISTS (SELECT 1 FROM dbo.MealPlanEntries WHERE PlanDate = @PlanDate AND MealType = 'Notes')
-				BEGIN
-					INSERT INTO dbo.MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
-					VALUES (@PlanDate, 'Notes', NULL, 'Note', @Notes);
-				END
-				ELSE
-				BEGIN
-					UPDATE dbo.MealPlanEntries SET Notes = @Notes WHERE PlanDate = @PlanDate AND MealType = 'Notes';
-				END",
+				WITH upd AS (
+					UPDATE MealPlanEntries SET Notes = @Notes
+					WHERE PlanDate = @PlanDate AND MealType = 'Notes'
+					RETURNING 1
+				)
+				INSERT INTO MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
+				SELECT @PlanDate, 'Notes', NULL, 'Note', @Notes
+				WHERE NOT EXISTS (SELECT 1 FROM upd)",
 				new { PlanDate = bulkPlanDateValue, Notes = entry.Notes?.Trim() }, tx);
 			processed++;
 			continue;
@@ -897,14 +891,12 @@ app.MapPost("/meal-plans/bulk", async (MealPlanBulkCreateDto dto) =>
 		if (string.IsNullOrWhiteSpace(entry.RecipeName)) continue;
 
 		await conn.ExecuteAsync(@"
-			IF NOT EXISTS (
-				SELECT 1 FROM dbo.MealPlanEntries
+			INSERT INTO MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
+			SELECT @PlanDate, @MealType, @RecipeId, @RecipeName, @Notes
+			WHERE NOT EXISTS (
+				SELECT 1 FROM MealPlanEntries
 				WHERE PlanDate = @PlanDate AND MealType = @MealType AND RecipeName = @RecipeName
-			)
-			BEGIN
-				INSERT INTO dbo.MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
-				VALUES (@PlanDate, @MealType, @RecipeId, @RecipeName, @Notes);
-			END",
+			)",
 			new
 			{
 				PlanDate = bulkPlanDateValue,
@@ -924,7 +916,7 @@ app.MapPost("/meal-plans/bulk", async (MealPlanBulkCreateDto dto) =>
 app.MapDelete("/meal-plans", async (string planDate, string mealType, string recipeName, bool? confirm, string? idempotencyKey) =>
 {
 	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
 
@@ -933,7 +925,7 @@ app.MapDelete("/meal-plans", async (string planDate, string mealType, string rec
 
 	var deleted = await conn.ExecuteAsync(@"
 		DELETE TOP (1)
-		FROM dbo.MealPlanEntries
+		FROM MealPlanEntries
 		WHERE PlanDate = @PlanDate AND MealType = @MealType AND RecipeName = @RecipeName;",
 		new { PlanDate = parsedDate.ToDateTime(TimeOnly.MinValue), MealType = mealType.Trim(), RecipeName = recipeName.Trim() });
 
@@ -950,7 +942,7 @@ app.MapDelete("/meal-plans", async (string planDate, string mealType, string rec
 
 app.MapPut("/meal-plans/note", async (MealPlanNoteUpsertDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -963,16 +955,14 @@ app.MapPut("/meal-plans/note", async (MealPlanNoteUpsertDto dto) =>
 	var noteDateValue = dto.PlanDate.ToDateTime(TimeOnly.MinValue);
 
 	await conn.ExecuteAsync(@"
-		IF NOT EXISTS (SELECT 1 FROM dbo.MealPlanEntries WHERE PlanDate = @PlanDate AND MealType = 'Notes')
-		BEGIN
-			INSERT INTO dbo.MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
-			VALUES (@PlanDate, 'Notes', NULL, 'Note', @Notes);
-		END
-		ELSE
-		BEGIN
-			UPDATE dbo.MealPlanEntries SET Notes = @Notes
-			WHERE PlanDate = @PlanDate AND MealType = 'Notes';
-		END",
+		WITH upd AS (
+			UPDATE MealPlanEntries SET Notes = @Notes
+			WHERE PlanDate = @PlanDate AND MealType = 'Notes'
+			RETURNING 1
+		)
+		INSERT INTO MealPlanEntries(PlanDate, MealType, RecipeId, RecipeName, Notes)
+		SELECT @PlanDate, 'Notes', NULL, 'Note', @Notes
+		WHERE NOT EXISTS (SELECT 1 FROM upd)",
 		new { PlanDate = noteDateValue, Notes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim() });
 
 	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", "/meal-plans/note", JsonSerializer.Serialize(new { dto.PlanDate }), 204, "success");
@@ -981,229 +971,171 @@ app.MapPut("/meal-plans/note", async (MealPlanNoteUpsertDto dto) =>
 
 static async Task EnsureDatabaseAsync(string connString)
 {
-	var masterConn = new SqlConnectionStringBuilder(connString) { InitialCatalog = "master" }.ConnectionString;
-	using var conn = new SqlConnection(masterConn);
+	// Postgres cannot CREATE DATABASE from a connection to the target database,
+	// so connect to the always-present 'postgres' maintenance database instead.
+	var builder = new NpgsqlConnectionStringBuilder(connString);
+	var target = builder.Database ?? "pantryscandb";
+	builder.Database = "postgres";
+
+	using var conn = new NpgsqlConnection(builder.ConnectionString);
 	await conn.OpenAsync();
-	await conn.ExecuteAsync("IF DB_ID('PantryScanDB') IS NULL CREATE DATABASE PantryScanDB;");
+	var exists = await conn.ExecuteScalarAsync<bool>(
+		"SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = @name)", new { name = target });
+	if (!exists)
+		await conn.ExecuteAsync($"CREATE DATABASE \"{target}\"");
 }
 
 static async Task EnsureSchemaAsync(string connString)
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	await conn.OpenAsync();
 
 	await conn.ExecuteAsync(@"
-		IF OBJECT_ID('dbo.Items', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[Items]
-			(
-				[ItemId] INT IDENTITY (1, 1) NOT NULL,
-				[Name] NVARCHAR (200) NOT NULL,
-				[Quantity] INT CONSTRAINT [DF_Items_Quantity] DEFAULT (0) NOT NULL,
-				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_Items_CreatedAt] DEFAULT (SYSDATETIME()) NOT NULL,
-				CONSTRAINT [PK_Items] PRIMARY KEY CLUSTERED ([ItemId] ASC)
-			);
-		END;
+		CREATE TABLE IF NOT EXISTS Items (
+			ItemId    INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			Name      VARCHAR(200) NOT NULL,
+			Quantity  INT NOT NULL DEFAULT 0,
+			CreatedAt TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
+		ALTER TABLE Items ADD COLUMN IF NOT EXISTS LowStockThreshold INT NOT NULL DEFAULT 2;
+		ALTER TABLE Items ADD COLUMN IF NOT EXISTS NeedsReview BOOLEAN NOT NULL DEFAULT FALSE;
+		ALTER TABLE Items ADD COLUMN IF NOT EXISTS LastScannedAt TIMESTAMP NULL;
+		ALTER TABLE Items ADD COLUMN IF NOT EXISTS Barcode VARCHAR(64) NULL;
+		ALTER TABLE Items ADD COLUMN IF NOT EXISTS Brand VARCHAR(200) NULL;
+		ALTER TABLE Items ADD COLUMN IF NOT EXISTS ImageUrl VARCHAR(500) NULL;
+		UPDATE Items SET LastScannedAt = CreatedAt WHERE Barcode IS NOT NULL AND LastScannedAt IS NULL;
+		CREATE UNIQUE INDEX IF NOT EXISTS UX_Items_Barcode ON Items (Barcode) WHERE Barcode IS NOT NULL;
 
-		-- Barcode-scanning columns on Items (added incrementally for existing DBs).
-		IF COL_LENGTH('dbo.Items', 'LowStockThreshold') IS NULL ALTER TABLE dbo.Items ADD [LowStockThreshold] INT CONSTRAINT [DF_Items_LowStock] DEFAULT (2) NOT NULL;
-		IF COL_LENGTH('dbo.Items', 'NeedsReview') IS NULL ALTER TABLE dbo.Items ADD [NeedsReview] BIT CONSTRAINT [DF_Items_NeedsReview] DEFAULT (0) NOT NULL;
-		IF COL_LENGTH('dbo.Items', 'LastScannedAt') IS NULL
-		BEGIN
-			ALTER TABLE dbo.Items ADD [LastScannedAt] DATETIME2 (7) NULL;
-			-- Backfill previously-scanned items so their history isn't lost.
-			EXEC(N'UPDATE dbo.Items SET LastScannedAt = CreatedAt WHERE Barcode IS NOT NULL AND LastScannedAt IS NULL;');
-		END;
-		IF COL_LENGTH('dbo.Items', 'Barcode') IS NULL ALTER TABLE dbo.Items ADD [Barcode] NVARCHAR (64) NULL;
-		IF COL_LENGTH('dbo.Items', 'Brand') IS NULL ALTER TABLE dbo.Items ADD [Brand] NVARCHAR (200) NULL;
-		IF COL_LENGTH('dbo.Items', 'ImageUrl') IS NULL ALTER TABLE dbo.Items ADD [ImageUrl] NVARCHAR (500) NULL;
-		IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Items_Barcode' AND object_id = OBJECT_ID('dbo.Items'))
-			EXEC(N'CREATE UNIQUE INDEX UX_Items_Barcode ON dbo.Items (Barcode) WHERE Barcode IS NOT NULL;');
+		CREATE TABLE IF NOT EXISTS Products (
+			Barcode     VARCHAR(64) PRIMARY KEY,
+			Name        VARCHAR(300) NULL,
+			Brand       VARCHAR(200) NULL,
+			ImageUrl    VARCHAR(500) NULL,
+			Categories  VARCHAR(500) NULL,
+			PackageSize VARCHAR(100) NULL,
+			Source      VARCHAR(50) NOT NULL DEFAULT 'openfoodfacts',
+			FetchedAt   TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
+		ALTER TABLE Products ADD COLUMN IF NOT EXISTS NutritionJson TEXT NULL;
 
-		-- Local product cache populated from OpenFoodFacts on first scan.
-		IF OBJECT_ID('dbo.Products', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[Products]
-			(
-				[Barcode] NVARCHAR (64) NOT NULL,
-				[Name] NVARCHAR (300) NULL,
-				[Brand] NVARCHAR (200) NULL,
-				[ImageUrl] NVARCHAR (500) NULL,
-				[Categories] NVARCHAR (500) NULL,
-				[PackageSize] NVARCHAR (100) NULL,
-				[Source] NVARCHAR (50) CONSTRAINT [DF_Products_Source] DEFAULT ('openfoodfacts') NOT NULL,
-				[FetchedAt] DATETIME2 (7) CONSTRAINT [DF_Products_FetchedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
-				CONSTRAINT [PK_Products] PRIMARY KEY CLUSTERED ([Barcode] ASC)
-			);
-		END;
+		CREATE TABLE IF NOT EXISTS Recipes (
+			RecipeId        INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			Name            VARCHAR(200) NOT NULL,
+			Course          VARCHAR(100) NULL,
+			Cuisine         VARCHAR(300) NULL,
+			Source          VARCHAR(200) NULL,
+			TagsJson        TEXT NULL,
+			Rating          INT NOT NULL DEFAULT 0,
+			AddedAt         TIMESTAMP NULL,
+			Servings        INT NULL,
+			CookMinutes     INT NULL,
+			IngredientsJson TEXT NOT NULL,
+			StepsJson       TEXT NOT NULL,
+			Comments        TEXT NULL,
+			ImageUrl        TEXT NULL,
+			CreatedAt       TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS Course VARCHAR(100) NULL;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS Cuisine VARCHAR(300) NULL;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS Source VARCHAR(200) NULL;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS TagsJson TEXT NULL;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS Rating INT NOT NULL DEFAULT 0;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS AddedAt TIMESTAMP NULL;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS CookMinutes INT NULL;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS Comments TEXT NULL;
+		ALTER TABLE Recipes ADD COLUMN IF NOT EXISTS ImageUrl TEXT NULL;
 
-		IF COL_LENGTH('dbo.Products', 'NutritionJson') IS NULL ALTER TABLE dbo.Products ADD [NutritionJson] NVARCHAR (MAX) NULL;
+		CREATE TABLE IF NOT EXISTS MealPlanEntries (
+			MealPlanEntryId INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			PlanDate        DATE NOT NULL,
+			MealType        VARCHAR(40) NOT NULL,
+			RecipeId        INT NULL REFERENCES Recipes (RecipeId),
+			RecipeName      VARCHAR(200) NOT NULL,
+			Notes           VARCHAR(1000) NULL,
+			CreatedAt       TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
 
-		IF OBJECT_ID('dbo.Recipes', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[Recipes]
-			(
-				[RecipeId] INT IDENTITY (1, 1) NOT NULL,
-				[Name] NVARCHAR (200) NOT NULL,
-				[Course] NVARCHAR (100) NULL,
-				[Cuisine] NVARCHAR (300) NULL,
-				[Source] NVARCHAR (200) NULL,
-				[TagsJson] NVARCHAR (MAX) NULL,
-				[Rating] INT CONSTRAINT [DF_Recipes_Rating] DEFAULT (0) NOT NULL,
-				[AddedAt] DATETIME2 (7) NULL,
-				[Servings] INT NULL,
-				[CookMinutes] INT NULL,
-				[IngredientsJson] NVARCHAR (MAX) NOT NULL,
-				[StepsJson] NVARCHAR (MAX) NOT NULL,
-				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_Recipes_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
-				CONSTRAINT [PK_Recipes] PRIMARY KEY CLUSTERED ([RecipeId] ASC)
-			);
-		END;
+		CREATE TABLE IF NOT EXISTS ShoppingItems (
+			ShoppingItemId INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			ClientId       VARCHAR(64) NOT NULL UNIQUE,
+			Name           VARCHAR(200) NOT NULL,
+			Qty            VARCHAR(100) NULL,
+			Category       VARCHAR(100) NULL,
+			Store          VARCHAR(200) NULL,
+			Note           VARCHAR(500) NULL,
+			RecipesJson    TEXT NULL,
+			IsChecked      BOOLEAN NOT NULL DEFAULT FALSE,
+			CreatedAt      TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
 
-		IF COL_LENGTH('dbo.Recipes', 'Course') IS NULL ALTER TABLE dbo.Recipes ADD [Course] NVARCHAR (100) NULL;
-		IF COL_LENGTH('dbo.Recipes', 'Cuisine') IS NULL ALTER TABLE dbo.Recipes ADD [Cuisine] NVARCHAR (300) NULL;
-		IF COL_LENGTH('dbo.Recipes', 'Source') IS NULL ALTER TABLE dbo.Recipes ADD [Source] NVARCHAR (200) NULL;
-		IF COL_LENGTH('dbo.Recipes', 'TagsJson') IS NULL ALTER TABLE dbo.Recipes ADD [TagsJson] NVARCHAR (MAX) NULL;
-		IF COL_LENGTH('dbo.Recipes', 'Rating') IS NULL ALTER TABLE dbo.Recipes ADD [Rating] INT CONSTRAINT [DF_Recipes_Rating_Upgrade] DEFAULT (0) NOT NULL;
-		IF COL_LENGTH('dbo.Recipes', 'AddedAt') IS NULL ALTER TABLE dbo.Recipes ADD [AddedAt] DATETIME2 (7) NULL;
-		IF COL_LENGTH('dbo.Recipes', 'CookMinutes') IS NULL ALTER TABLE dbo.Recipes ADD [CookMinutes] INT NULL;
+		CREATE TABLE IF NOT EXISTS Users (
+			UserId       INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			DisplayName  VARCHAR(100) NOT NULL,
+			Email        VARCHAR(200) NOT NULL UNIQUE,
+			PasswordHash VARCHAR(200) NOT NULL,
+			Role         VARCHAR(20) NOT NULL DEFAULT 'member',
+			CreatedAt    TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
 
-		IF OBJECT_ID('dbo.MealPlanEntries', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[MealPlanEntries]
-			(
-				[MealPlanEntryId] INT IDENTITY (1, 1) NOT NULL,
-				[PlanDate] DATE NOT NULL,
-				[MealType] NVARCHAR (40) NOT NULL,
-				[RecipeId] INT NULL,
-				[RecipeName] NVARCHAR (200) NOT NULL,
-				[Notes] NVARCHAR (1000) NULL,
-				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_MealPlanEntries_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
-				CONSTRAINT [PK_MealPlanEntries] PRIMARY KEY CLUSTERED ([MealPlanEntryId] ASC),
-				CONSTRAINT [FK_MealPlanEntries_Recipes_RecipeId] FOREIGN KEY ([RecipeId]) REFERENCES [dbo].[Recipes] ([RecipeId])
-			);
-		END;
+		CREATE TABLE IF NOT EXISTS UserSessions (
+			SessionId    INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			SessionToken VARCHAR(64) NOT NULL UNIQUE,
+			UserId       INT NOT NULL REFERENCES Users (UserId),
+			ExpiresAt    TIMESTAMP NOT NULL,
+			CreatedAt    TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
 
-		IF OBJECT_ID('dbo.ShoppingItems', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[ShoppingItems]
-			(
-				[ShoppingItemId] INT IDENTITY (1, 1) NOT NULL,
-				[ClientId] NVARCHAR (64) NOT NULL,
-				[Name] NVARCHAR (200) NOT NULL,
-				[Qty] NVARCHAR (100) NULL,
-				[Category] NVARCHAR (100) NULL,
-				[Store] NVARCHAR (200) NULL,
-				[Note] NVARCHAR (500) NULL,
-				[RecipesJson] NVARCHAR (MAX) NULL,
-				[IsChecked] BIT CONSTRAINT [DF_ShoppingItems_IsChecked] DEFAULT (0) NOT NULL,
-				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_ShoppingItems_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
-				CONSTRAINT [PK_ShoppingItems] PRIMARY KEY CLUSTERED ([ShoppingItemId] ASC),
-				CONSTRAINT [UQ_ShoppingItems_ClientId] UNIQUE ([ClientId])
-			);
-		END;
+		CREATE TABLE IF NOT EXISTS AuditLog (
+			AuditId        INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			IdempotencyKey VARCHAR(64) NULL,
+			ActionId       VARCHAR(64) NULL,
+			Actor          VARCHAR(100) NULL,
+			Source         VARCHAR(100) NULL,
+			Method         VARCHAR(10) NOT NULL,
+			Endpoint       VARCHAR(200) NOT NULL,
+			RequestBody    TEXT NULL,
+			StatusCode     INT NOT NULL,
+			Outcome        VARCHAR(20) NOT NULL,
+			RequestedAtUtc TIMESTAMP NULL,
+			CreatedAt      TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
+		CREATE UNIQUE INDEX IF NOT EXISTS UX_AuditLog_IdempotencyKey
+			ON AuditLog (IdempotencyKey) WHERE IdempotencyKey IS NOT NULL;
 
-		IF OBJECT_ID('dbo.Users', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[Users]
-			(
-				[UserId] INT IDENTITY (1, 1) NOT NULL,
-				[DisplayName] NVARCHAR (100) NOT NULL,
-				[Email] NVARCHAR (200) NOT NULL,
-				[PasswordHash] NVARCHAR (200) NOT NULL,
-				[Role] NVARCHAR (20) CONSTRAINT [DF_Users_Role] DEFAULT ('member') NOT NULL,
-				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_Users_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
-				CONSTRAINT [PK_Users] PRIMARY KEY CLUSTERED ([UserId] ASC),
-				CONSTRAINT [UQ_Users_Email] UNIQUE ([Email])
-			);
-		END;
+		CREATE TABLE IF NOT EXISTS CalendarEvents (
+			EventId     INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			Title       VARCHAR(200) NOT NULL,
+			StartDate   TIMESTAMP NOT NULL,
+			EndDate     TIMESTAMP NULL,
+			AllDay      BOOLEAN NOT NULL DEFAULT FALSE,
+			Description VARCHAR(1000) NULL,
+			Category    VARCHAR(50) NULL,
+			Color       VARCHAR(20) NULL,
+			CreatedAt   TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
 
-		IF OBJECT_ID('dbo.UserSessions', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[UserSessions]
-			(
-				[SessionId] INT IDENTITY (1, 1) NOT NULL,
-				[SessionToken] NVARCHAR (64) NOT NULL,
-				[UserId] INT NOT NULL,
-				[ExpiresAt] DATETIME2 (7) NOT NULL,
-				[CreatedAt] DATETIME2 (7) CONSTRAINT [DF_UserSessions_CreatedAt] DEFAULT (SYSUTCDATETIME()) NOT NULL,
-				CONSTRAINT [PK_UserSessions] PRIMARY KEY CLUSTERED ([SessionId] ASC),
-				CONSTRAINT [UQ_UserSessions_Token] UNIQUE ([SessionToken]),
-				CONSTRAINT [FK_UserSessions_Users] FOREIGN KEY ([UserId]) REFERENCES [dbo].[Users] ([UserId])
-			);
-		END;
-
-		IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[AuditLog]
-			(
-				[AuditId]        INT            IDENTITY(1,1) NOT NULL,
-				[IdempotencyKey] NVARCHAR(64)   NULL,
-				[ActionId]       NVARCHAR(64)   NULL,
-				[Actor]          NVARCHAR(100)  NULL,
-				[Source]         NVARCHAR(100)  NULL,
-				[Method]         NVARCHAR(10)   NOT NULL,
-				[Endpoint]       NVARCHAR(200)  NOT NULL,
-				[RequestBody]    NVARCHAR(MAX)  NULL,
-				[StatusCode]     INT            NOT NULL,
-				[Outcome]        NVARCHAR(20)   NOT NULL,
-				[RequestedAtUtc] DATETIME2      NULL,
-				[CreatedAt]      DATETIME2      NOT NULL CONSTRAINT [DF_AuditLog_CreatedAt] DEFAULT (GETUTCDATE()),
-				CONSTRAINT [PK_AuditLog] PRIMARY KEY CLUSTERED ([AuditId] ASC)
-			);
-		END;
-
-		IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_AuditLog_IdempotencyKey' AND object_id = OBJECT_ID('dbo.AuditLog'))
-		BEGIN
-			CREATE UNIQUE INDEX [UX_AuditLog_IdempotencyKey]
-				ON [dbo].[AuditLog]([IdempotencyKey])
-				WHERE [IdempotencyKey] IS NOT NULL;
-		END;
-
-		IF OBJECT_ID('dbo.CalendarEvents', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[CalendarEvents]
-			(
-				[EventId]     INT            IDENTITY (1, 1) NOT NULL,
-				[Title]       NVARCHAR (200) NOT NULL,
-				[StartDate]   DATETIME2 (7)  NOT NULL,
-				[EndDate]     DATETIME2 (7)  NULL,
-				[AllDay]      BIT            NOT NULL CONSTRAINT [DF_CalendarEvents_AllDay]    DEFAULT (0),
-				[Description] NVARCHAR (1000) NULL,
-				[Category]    NVARCHAR (50)  NULL,
-				[Color]       NVARCHAR (20)  NULL,
-				[CreatedAt]   DATETIME2 (7)  NOT NULL CONSTRAINT [DF_CalendarEvents_CreatedAt] DEFAULT (SYSUTCDATETIME()),
-				CONSTRAINT [PK_CalendarEvents] PRIMARY KEY CLUSTERED ([EventId] ASC)
-			);
-		END;
-
-		IF OBJECT_ID('dbo.Todos', 'U') IS NULL
-		BEGIN
-			CREATE TABLE [dbo].[Todos]
-			(
-				[TodoId]      INT            IDENTITY (1, 1) NOT NULL,
-				[Title]       NVARCHAR (300) NOT NULL,
-				[Notes]       NVARCHAR (1000) NULL,
-				[DueDate]     DATE           NULL,
-				[ListName]    NVARCHAR (100) NOT NULL CONSTRAINT [DF_Todos_ListName]    DEFAULT (N'General'),
-				[Priority]    TINYINT        NOT NULL CONSTRAINT [DF_Todos_Priority]    DEFAULT (1),
-				[IsCompleted] BIT            NOT NULL CONSTRAINT [DF_Todos_IsCompleted] DEFAULT (0),
-				[CompletedAt] DATETIME2 (7)  NULL,
-				[CreatedAt]   DATETIME2 (7)  NOT NULL CONSTRAINT [DF_Todos_CreatedAt]   DEFAULT (SYSUTCDATETIME()),
-				CONSTRAINT [PK_Todos] PRIMARY KEY CLUSTERED ([TodoId] ASC)
-			);
-		END;
+		CREATE TABLE IF NOT EXISTS Todos (
+			TodoId      INT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			Title       VARCHAR(300) NOT NULL,
+			Notes       VARCHAR(1000) NULL,
+			DueDate     DATE NULL,
+			ListName    VARCHAR(100) NOT NULL DEFAULT 'General',
+			Priority    SMALLINT NOT NULL DEFAULT 1,
+			IsCompleted BOOLEAN NOT NULL DEFAULT FALSE,
+			CompletedAt TIMESTAMP NULL,
+			CreatedAt   TIMESTAMP NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+		);
 	");
 
 	// One-time data migration: round any legacy decimal nutrition values to whole numbers.
 	// Self-terminating — once rewritten as integers, rows no longer match the '%.%' filter.
 	var legacy = await conn.QueryAsync(
-		"SELECT Barcode, NutritionJson FROM dbo.Products WHERE NutritionJson IS NOT NULL AND NutritionJson LIKE '%.%'");
+		"SELECT Barcode, NutritionJson FROM Products WHERE NutritionJson IS NOT NULL AND NutritionJson LIKE '%.%'");
 	foreach (var row in legacy)
 	{
 		var rounded = RoundNutritionJson((string)row.NutritionJson);
 		if (rounded is not null)
-			await conn.ExecuteAsync("UPDATE dbo.Products SET NutritionJson = @j WHERE Barcode = @b",
+			await conn.ExecuteAsync("UPDATE Products SET NutritionJson = @j WHERE Barcode = @b",
 				new { j = rounded, b = (string)row.Barcode });
 	}
 }
@@ -1338,10 +1270,10 @@ app.MapPost("/recipes/import", async (RecipeImportDto dto, IHttpClientFactory ht
 
 app.MapGet("/shopping", async () =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var rows = (await conn.QueryAsync<ShoppingItemRow>(@"
 		SELECT ShoppingItemId, ClientId, Name, Qty, Category, Store, Note, RecipesJson, IsChecked
-		FROM dbo.ShoppingItems
+		FROM ShoppingItems
 		ORDER BY ShoppingItemId ASC")).AsList();
 
 	// Return as array of ShoppingItem objects matching the frontend format
@@ -1359,15 +1291,14 @@ app.MapGet("/shopping", async () =>
 // Frontend-compatible POST endpoint for adding shopping items
 app.MapPost("/shopping", async (ShoppingAddDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 
 	if (string.IsNullOrWhiteSpace(dto.Name))
 		return Results.BadRequest(new { error = "Name is required." });
 
 	var id = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.ShoppingItems(ClientId, Name, Qty, Category, Store, Note)
-		VALUES (@ClientId, @Name, @Qty, @Category, @Store, @Note);
-		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		INSERT INTO ShoppingItems(ClientId, Name, Qty, Category, Store, Note)
+		VALUES (@ClientId, @Name, @Qty, @Category, @Store, @Note) RETURNING ShoppingItemId;",
 		new
 		{
 			ClientId = Guid.NewGuid().ToString().Substring(0, 8),
@@ -1393,8 +1324,8 @@ app.MapDelete("/shopping/{id:int}", async (int id, bool? confirm) =>
 	if (confirm != true)
 		return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
 
-	using var conn = new SqlConnection(connString);
-	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.ShoppingItems WHERE ShoppingItemId = @id", new { id });
+	using var conn = new NpgsqlConnection(connString);
+	var deleted = await conn.ExecuteAsync("DELETE FROM ShoppingItems WHERE ShoppingItemId = @id", new { id });
 
 	if (deleted == 0)
 		return Results.NotFound(new { error = "Item not found." });
@@ -1404,7 +1335,7 @@ app.MapDelete("/shopping/{id:int}", async (int id, bool? confirm) =>
 
 app.MapPost("/shopping/items", async (ShoppingItemDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -1424,8 +1355,8 @@ app.MapPost("/shopping/items", async (ShoppingItemDto dto) =>
 	var recipesJson = dto.Recipes?.Length > 0 ? JsonSerializer.Serialize(dto.Recipes) : null;
 
 	await conn.ExecuteAsync(@"
-		IF NOT EXISTS (SELECT 1 FROM dbo.ShoppingItems WHERE ClientId = @ClientId)
-		INSERT INTO dbo.ShoppingItems(ClientId, Name, Qty, Category, Store, Note, RecipesJson)
+		IF NOT EXISTS (SELECT 1 FROM ShoppingItems WHERE ClientId = @ClientId)
+		INSERT INTO ShoppingItems(ClientId, Name, Qty, Category, Store, Note, RecipesJson)
 		VALUES (@ClientId, @Name, @Qty, @Category, @Store, @Note, @RecipesJson);",
 		new
 		{
@@ -1444,12 +1375,12 @@ app.MapPost("/shopping/items", async (ShoppingItemDto dto) =>
 
 app.MapPut("/shopping/items/{clientId}/check", async (string clientId, ShoppingCheckDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
 	await conn.ExecuteAsync(
-		"UPDATE dbo.ShoppingItems SET IsChecked = @IsChecked WHERE ClientId = @ClientId;",
+		"UPDATE ShoppingItems SET IsChecked = @IsChecked WHERE ClientId = @ClientId;",
 		new { IsChecked = dto.Checked, ClientId = clientId });
 
 	await LogAudit(conn, dto.IdempotencyKey, dto.Audit, "PUT", $"/shopping/items/{clientId}/check", JsonSerializer.Serialize(new { dto.Checked }), 204, "success");
@@ -1459,12 +1390,12 @@ app.MapPut("/shopping/items/{clientId}/check", async (string clientId, ShoppingC
 app.MapDelete("/shopping/items/{clientId}", async (string clientId, bool? confirm, string? idempotencyKey) =>
 {
 	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
 
 	var deleted = await conn.ExecuteAsync(
-		"DELETE FROM dbo.ShoppingItems WHERE ClientId = @ClientId;",
+		"DELETE FROM ShoppingItems WHERE ClientId = @ClientId;",
 		new { ClientId = clientId });
 
 	if (deleted == 0)
@@ -1481,18 +1412,18 @@ app.MapDelete("/shopping/items/{clientId}", async (string clientId, bool? confir
 app.MapDelete("/shopping/checked", async (bool? confirm, string? idempotencyKey) =>
 {
 	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
 
-	await conn.ExecuteAsync("DELETE FROM dbo.ShoppingItems WHERE IsChecked = 1;");
+	await conn.ExecuteAsync("DELETE FROM ShoppingItems WHERE IsChecked = TRUE;");
 	await LogAudit(conn, idempotencyKey, null, "DELETE", "/shopping/checked", null, 204, "success");
 	return Results.NoContent();
 });
 
 app.MapPost("/shopping/bulk", async (ShoppingBulkDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -1512,8 +1443,8 @@ app.MapPost("/shopping/bulk", async (ShoppingBulkDto dto) =>
 		var recipesJson = item.Recipes?.Length > 0 ? JsonSerializer.Serialize(item.Recipes) : null;
 
 		await conn.ExecuteAsync(@"
-			IF NOT EXISTS (SELECT 1 FROM dbo.ShoppingItems WHERE ClientId = @ClientId)
-			INSERT INTO dbo.ShoppingItems(ClientId, Name, Qty, Category, Store, Note, RecipesJson, IsChecked)
+			IF NOT EXISTS (SELECT 1 FROM ShoppingItems WHERE ClientId = @ClientId)
+			INSERT INTO ShoppingItems(ClientId, Name, Qty, Category, Store, Note, RecipesJson, IsChecked)
 			VALUES (@ClientId, @Name, @Qty, @Category, @Store, @Note, @RecipesJson, @IsChecked);",
 			new
 			{
@@ -1538,21 +1469,21 @@ app.MapPost("/shopping/bulk", async (ShoppingBulkDto dto) =>
 
 app.MapGet("/calendar", async (string? from, string? to) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	if (!string.IsNullOrWhiteSpace(from) && !string.IsNullOrWhiteSpace(to))
 	{
 		var rows = await conn.QueryAsync(
-			"SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color, CreatedAt FROM dbo.CalendarEvents WHERE StartDate >= @From AND StartDate <= @To ORDER BY StartDate ASC",
+			"SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color, CreatedAt FROM CalendarEvents WHERE StartDate >= @From AND StartDate <= @To ORDER BY StartDate ASC",
 			new { From = DateTime.Parse(from), To = DateTime.Parse(to).AddDays(1).AddSeconds(-1) });
 		return Results.Ok(rows);
 	}
-	var all = await conn.QueryAsync("SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color, CreatedAt FROM dbo.CalendarEvents ORDER BY StartDate ASC");
+	var all = await conn.QueryAsync("SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color, CreatedAt FROM CalendarEvents ORDER BY StartDate ASC");
 	return Results.Ok(all);
 });
 
 app.MapPost("/calendar", async (CalendarEventCreateDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -1570,9 +1501,8 @@ app.MapPost("/calendar", async (CalendarEventCreateDto dto) =>
 	}
 
 	var id = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.CalendarEvents (Title, StartDate, EndDate, AllDay, Description, Category, Color)
-		VALUES (@Title, @StartDate, @EndDate, @AllDay, @Description, @Category, @Color);
-		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		INSERT INTO CalendarEvents (Title, StartDate, EndDate, AllDay, Description, Category, Color)
+		VALUES (@Title, @StartDate, @EndDate, @AllDay, @Description, @Category, @Color) RETURNING EventId;",
 		new
 		{
 			Title = dto.Title.Trim(),
@@ -1590,12 +1520,12 @@ app.MapPost("/calendar", async (CalendarEventCreateDto dto) =>
 
 app.MapPut("/calendar/{id:int}", async (int id, CalendarEventUpdateDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
 	var existing = await conn.QueryFirstOrDefaultAsync(
-		"SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color FROM dbo.CalendarEvents WHERE EventId = @id", new { id });
+		"SELECT EventId, Title, StartDate, EndDate, AllDay, Description, Category, Color FROM CalendarEvents WHERE EventId = @id", new { id });
 	if (existing is null)
 	{
 		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
@@ -1612,7 +1542,7 @@ app.MapPut("/calendar/{id:int}", async (int id, CalendarEventUpdateDto dto) =>
 	var color = dto.Color?.Trim() ?? (string?)existing.Color;
 
 	await conn.ExecuteAsync(@"
-		UPDATE dbo.CalendarEvents
+		UPDATE CalendarEvents
 		SET Title = @Title, StartDate = @StartDate, EndDate = @EndDate, AllDay = @AllDay,
 		    Description = @Description, Category = @Category, Color = @Color
 		WHERE EventId = @id",
@@ -1625,11 +1555,11 @@ app.MapPut("/calendar/{id:int}", async (int id, CalendarEventUpdateDto dto) =>
 app.MapDelete("/calendar/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
 	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
 
-	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.CalendarEvents WHERE EventId = @id", new { id });
+	var deleted = await conn.ExecuteAsync("DELETE FROM CalendarEvents WHERE EventId = @id", new { id });
 	if (deleted == 0)
 	{
 		if (!string.IsNullOrWhiteSpace(idempotencyKey))
@@ -1645,27 +1575,27 @@ app.MapDelete("/calendar/{id:int}", async (int id, bool? confirm, string? idempo
 
 app.MapGet("/todos", async (string? list, bool? completed) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var where = new List<string>();
 	if (!string.IsNullOrWhiteSpace(list)) where.Add("ListName = @ListName");
 	if (completed.HasValue) where.Add("IsCompleted = @IsCompleted");
 	var whereClause = where.Count > 0 ? "WHERE " + string.Join(" AND ", where) : "";
 	var rows = await conn.QueryAsync(
-		$"SELECT TodoId, Title, Notes, DueDate, ListName, Priority, IsCompleted, CompletedAt, CreatedAt FROM dbo.Todos {whereClause} ORDER BY IsCompleted ASC, Priority DESC, DueDate ASC, TodoId ASC",
+		$"SELECT TodoId, Title, Notes, DueDate, ListName, Priority, IsCompleted, CompletedAt, CreatedAt FROM Todos {whereClause} ORDER BY IsCompleted ASC, Priority DESC, DueDate ASC, TodoId ASC",
 		new { ListName = list, IsCompleted = completed });
 	return Results.Ok(rows);
 });
 
 app.MapGet("/todos/lists", async () =>
 {
-	using var conn = new SqlConnection(connString);
-	var lists = await conn.QueryAsync<string>("SELECT DISTINCT ListName FROM dbo.Todos ORDER BY ListName ASC");
+	using var conn = new NpgsqlConnection(connString);
+	var lists = await conn.QueryAsync<string>("SELECT DISTINCT ListName FROM Todos ORDER BY ListName ASC");
 	return Results.Ok(lists);
 });
 
 app.MapPost("/todos", async (TodoCreateDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
@@ -1678,9 +1608,8 @@ app.MapPost("/todos", async (TodoCreateDto dto) =>
 	var priority = dto.Priority is < 1 or > 3 ? (byte)1 : dto.Priority;
 
 	var id = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.Todos (Title, Notes, DueDate, ListName, Priority)
-		VALUES (@Title, @Notes, @DueDate, @ListName, @Priority);
-		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		INSERT INTO Todos (Title, Notes, DueDate, ListName, Priority)
+		VALUES (@Title, @Notes, @DueDate, @ListName, @Priority) RETURNING TodoId;",
 		new
 		{
 			Title = dto.Title.Trim(),
@@ -1696,12 +1625,12 @@ app.MapPost("/todos", async (TodoCreateDto dto) =>
 
 app.MapPut("/todos/{id:int}", async (int id, TodoUpdateDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
 	var existing = await conn.QueryFirstOrDefaultAsync(
-		"SELECT TodoId, Title, Notes, DueDate, ListName, Priority FROM dbo.Todos WHERE TodoId = @id", new { id });
+		"SELECT TodoId, Title, Notes, DueDate, ListName, Priority FROM Todos WHERE TodoId = @id", new { id });
 	if (existing is null)
 	{
 		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
@@ -1716,7 +1645,7 @@ app.MapPut("/todos/{id:int}", async (int id, TodoUpdateDto dto) =>
 	var priority = dto.Priority.HasValue ? (dto.Priority.Value < 1 || dto.Priority.Value > 3 ? (byte)1 : dto.Priority.Value) : (byte)existing.Priority;
 
 	await conn.ExecuteAsync(@"
-		UPDATE dbo.Todos SET Title = @Title, Notes = @Notes, DueDate = @DueDate, ListName = @ListName, Priority = @Priority
+		UPDATE Todos SET Title = @Title, Notes = @Notes, DueDate = @DueDate, ListName = @ListName, Priority = @Priority
 		WHERE TodoId = @id",
 		new { id, Title = title, Notes = notes, DueDate = dueDate, ListName = listName, Priority = priority });
 
@@ -1726,11 +1655,11 @@ app.MapPut("/todos/{id:int}", async (int id, TodoUpdateDto dto) =>
 
 app.MapPut("/todos/{id:int}/complete", async (int id, TodoCompleteDto dto) =>
 {
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, dto.IdempotencyKey);
 	if (idem is not null) return idem;
 
-	var existing = await conn.ExecuteScalarAsync<int?>("SELECT TodoId FROM dbo.Todos WHERE TodoId = @id", new { id });
+	var existing = await conn.ExecuteScalarAsync<int?>("SELECT TodoId FROM Todos WHERE TodoId = @id", new { id });
 	if (existing is null)
 	{
 		if (!string.IsNullOrWhiteSpace(dto.IdempotencyKey))
@@ -1740,8 +1669,8 @@ app.MapPut("/todos/{id:int}/complete", async (int id, TodoCompleteDto dto) =>
 
 	var isCompleted = dto.IsCompleted;
 	await conn.ExecuteAsync(@"
-		UPDATE dbo.Todos
-		SET IsCompleted = @IsCompleted, CompletedAt = CASE WHEN @IsCompleted = 1 THEN SYSUTCDATETIME() ELSE NULL END
+		UPDATE Todos
+		SET IsCompleted = @IsCompleted, CompletedAt = CASE WHEN @IsCompleted = TRUE THEN (NOW() AT TIME ZONE 'utc') ELSE NULL END
 		WHERE TodoId = @id",
 		new { id, IsCompleted = isCompleted });
 
@@ -1752,11 +1681,11 @@ app.MapPut("/todos/{id:int}/complete", async (int id, TodoCompleteDto dto) =>
 app.MapDelete("/todos/{id:int}", async (int id, bool? confirm, string? idempotencyKey) =>
 {
 	if (confirm != true) return Results.BadRequest(new { error = "confirm=true is required for destructive operations." });
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var idem = await CheckIdempotency(conn, idempotencyKey);
 	if (idem is not null) return idem;
 
-	var deleted = await conn.ExecuteAsync("DELETE FROM dbo.Todos WHERE TodoId = @id", new { id });
+	var deleted = await conn.ExecuteAsync("DELETE FROM Todos WHERE TodoId = @id", new { id });
 	if (deleted == 0)
 	{
 		if (!string.IsNullOrWhiteSpace(idempotencyKey))
@@ -1776,21 +1705,20 @@ app.MapPost("/auth/register", async (AuthRegisterDto dto) =>
 	if (string.IsNullOrWhiteSpace(dto.Email)) return Results.BadRequest(new { error = "Email is required." });
 	if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6) return Results.BadRequest(new { error = "Password must be at least 6 characters." });
 
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	await conn.OpenAsync();
 
-	var existing = await conn.ExecuteScalarAsync<int?>("SELECT UserId FROM dbo.Users WHERE Email = @Email", new { Email = dto.Email.Trim().ToLowerInvariant() });
+	var existing = await conn.ExecuteScalarAsync<int?>("SELECT UserId FROM Users WHERE Email = @Email", new { Email = dto.Email.Trim().ToLowerInvariant() });
 	if (existing.HasValue) return Results.Conflict(new { error = "An account with that email already exists." });
 
 	// Determine role: first user becomes owner
-	var userCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM dbo.Users");
+	var userCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(1) FROM Users");
 	var role = userCount == 0 ? "owner" : "member";
 
 	var hash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
 	var userId = await conn.ExecuteScalarAsync<int>(@"
-		INSERT INTO dbo.Users (DisplayName, Email, PasswordHash, Role)
-		VALUES (@DisplayName, @Email, @PasswordHash, @Role);
-		SELECT CAST(SCOPE_IDENTITY() AS int);",
+		INSERT INTO Users (DisplayName, Email, PasswordHash, Role)
+		VALUES (@DisplayName, @Email, @PasswordHash, @Role) RETURNING UserId;",
 		new { DisplayName = dto.DisplayName.Trim(), Email = dto.Email.Trim().ToLowerInvariant(), PasswordHash = hash, Role = role });
 
 	return Results.Created($"/auth/me", new { userId, displayName = dto.DisplayName.Trim(), role });
@@ -1801,9 +1729,9 @@ app.MapPost("/auth/login", async (AuthLoginDto dto) =>
 	if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
 		return Results.BadRequest(new { error = "Email and password are required." });
 
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var user = await conn.QueryFirstOrDefaultAsync<UserRow>(
-		"SELECT UserId, DisplayName, Email, PasswordHash, Role FROM dbo.Users WHERE Email = @Email",
+		"SELECT UserId, DisplayName, Email, PasswordHash, Role FROM Users WHERE Email = @Email",
 		new { Email = dto.Email.Trim().ToLowerInvariant() });
 
 	if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
@@ -1812,7 +1740,7 @@ app.MapPost("/auth/login", async (AuthLoginDto dto) =>
 	var token = Guid.NewGuid().ToString("N");
 	var expires = DateTime.UtcNow.AddDays(30);
 	await conn.ExecuteAsync(@"
-		INSERT INTO dbo.UserSessions (SessionToken, UserId, ExpiresAt)
+		INSERT INTO UserSessions (SessionToken, UserId, ExpiresAt)
 		VALUES (@Token, @UserId, @ExpiresAt);",
 		new { Token = token, UserId = user.UserId, ExpiresAt = expires });
 
@@ -1824,8 +1752,8 @@ app.MapPost("/auth/logout", async (HttpContext ctx) =>
 	var token = ctx.Request.Headers["X-Session-Token"].FirstOrDefault();
 	if (string.IsNullOrWhiteSpace(token)) return Results.NoContent();
 
-	using var conn = new SqlConnection(connString);
-	await conn.ExecuteAsync("DELETE FROM dbo.UserSessions WHERE SessionToken = @Token", new { Token = token });
+	using var conn = new NpgsqlConnection(connString);
+	await conn.ExecuteAsync("DELETE FROM UserSessions WHERE SessionToken = @Token", new { Token = token });
 	return Results.NoContent();
 });
 
@@ -1834,12 +1762,12 @@ app.MapGet("/auth/me", async (HttpContext ctx) =>
 	var token = ctx.Request.Headers["X-Session-Token"].FirstOrDefault();
 	if (string.IsNullOrWhiteSpace(token)) return Results.Unauthorized();
 
-	using var conn = new SqlConnection(connString);
+	using var conn = new NpgsqlConnection(connString);
 	var session = await conn.QueryFirstOrDefaultAsync<SessionWithUser>(@"
 		SELECT u.UserId, u.DisplayName, u.Email, u.Role, s.ExpiresAt
-		FROM dbo.UserSessions s
-		JOIN dbo.Users u ON u.UserId = s.UserId
-		WHERE s.SessionToken = @Token AND s.ExpiresAt > SYSUTCDATETIME()",
+		FROM UserSessions s
+		JOIN Users u ON u.UserId = s.UserId
+		WHERE s.SessionToken = @Token AND s.ExpiresAt > (NOW() AT TIME ZONE 'utc')",
 		new { Token = token });
 
 	if (session is null) return Results.Unauthorized();
@@ -1855,7 +1783,7 @@ async Task LogAudit(System.Data.IDbConnection db, string? idempotencyKey, AuditD
 	try
 	{
 		await db.ExecuteAsync(@"
-			INSERT INTO dbo.AuditLog (IdempotencyKey, ActionId, Actor, Source, Method, Endpoint, RequestBody, StatusCode, Outcome, RequestedAtUtc)
+			INSERT INTO AuditLog (IdempotencyKey, ActionId, Actor, Source, Method, Endpoint, RequestBody, StatusCode, Outcome, RequestedAtUtc)
 			VALUES (@IdempotencyKey, @ActionId, @Actor, @Source, @Method, @Endpoint, @RequestBody, @StatusCode, @Outcome, @RequestedAtUtc);",
 			new
 			{
@@ -1878,17 +1806,17 @@ async Task<IResult?> CheckIdempotency(System.Data.IDbConnection db, string? idem
 {
 	if (string.IsNullOrWhiteSpace(idempotencyKey)) return null;
 	var existing = await db.ExecuteScalarAsync<int?>(
-		"SELECT AuditId FROM dbo.AuditLog WHERE IdempotencyKey = @key AND Outcome = 'success';",
+		"SELECT AuditId FROM AuditLog WHERE IdempotencyKey = @key AND Outcome = 'success';",
 		new { key = idempotencyKey.Trim() });
 	return existing.HasValue ? Results.Ok(new { idempotent = true }) : null;
 }
 
 // Resolve a barcode to product metadata. Local cache first, then OpenFoodFacts.
-// Successful remote lookups are cached in dbo.Products. Returns null if unknown.
-async Task<ProductInfo?> LookupProductAsync(SqlConnection conn, IHttpClientFactory httpClientFactory, string barcode)
+// Successful remote lookups are cached in Products. Returns null if unknown.
+async Task<ProductInfo?> LookupProductAsync(NpgsqlConnection conn, IHttpClientFactory httpClientFactory, string barcode)
 {
 	var cached = await conn.QueryFirstOrDefaultAsync<ProductInfo>(
-		"SELECT Barcode, Name, Brand, ImageUrl, Categories, PackageSize, NutritionJson, Source FROM dbo.Products WHERE Barcode = @barcode",
+		"SELECT Barcode, Name, Brand, ImageUrl, Categories, PackageSize, NutritionJson, Source FROM Products WHERE Barcode = @barcode",
 		new { barcode });
 	// Cache is authoritative once it has nutrition; otherwise re-fetch to upgrade the row.
 	if (cached is not null && cached.NutritionJson is not null) return cached with { Source = "cache" };
@@ -1929,14 +1857,12 @@ async Task<ProductInfo?> LookupProductAsync(SqlConnection conn, IHttpClientFacto
 
 		// Upsert: insert new products, or upgrade a previously-cached row with nutrition.
 		await conn.ExecuteAsync(@"
-			MERGE dbo.Products AS t
-			USING (SELECT @Barcode AS Barcode) AS s ON t.Barcode = s.Barcode
-			WHEN MATCHED THEN UPDATE SET
+			INSERT INTO Products (Barcode, Name, Brand, ImageUrl, Categories, PackageSize, NutritionJson, Source)
+			VALUES (@Barcode, @Name, @Brand, @ImageUrl, @Categories, @PackageSize, @NutritionJson, @Source)
+			ON CONFLICT (Barcode) DO UPDATE SET
 				Name = @Name, Brand = @Brand, ImageUrl = @ImageUrl, Categories = @Categories,
-				PackageSize = @PackageSize, NutritionJson = @NutritionJson, FetchedAt = SYSUTCDATETIME()
-			WHEN NOT MATCHED THEN
-				INSERT (Barcode, Name, Brand, ImageUrl, Categories, PackageSize, NutritionJson, Source)
-				VALUES (@Barcode, @Name, @Brand, @ImageUrl, @Categories, @PackageSize, @NutritionJson, @Source);",
+				PackageSize = @PackageSize, NutritionJson = @NutritionJson,
+				FetchedAt = (NOW() AT TIME ZONE 'utc');",
 			info);
 
 		return info;
