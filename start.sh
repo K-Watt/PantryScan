@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
 #
 # PantryScan — one-button launcher
-# Boots SQL Server (in Colima), the .NET API, and the React UI, then opens the app.
-# Press Ctrl+C to stop the API and UI (SQL keeps running in the background).
+# Boots PostgreSQL (in Colima), the .NET API, and the React UI, then opens the app.
+# Press Ctrl+C to stop the API and UI (PostgreSQL keeps running in the background).
 #
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SQL_CONTAINER="pantryscan-sql"
-SQL_IMAGE="mcr.microsoft.com/azure-sql-edge:latest"
-SA_PASS="PantryScanP@ss1"
+DB_CONTAINER="pantryscan-pg"
+DB_IMAGE="postgres:17-alpine"
+DB_USER="pantryscan"
+DB_PASS="pantryscan"
+DB_NAME="pantryscandb"
 API_URL="http://localhost:5169"
 UI_URL="http://localhost:5173"
 
-# Colima/docker & sqlcmd live in Homebrew's bin; make sure it's on PATH.
+# Colima/docker live in Homebrew's bin; make sure it's on PATH.
 export PATH="/opt/homebrew/bin:$PATH"
 
 say() { printf "\033[1;36m▶ %s\033[0m\n" "$1"; }
@@ -31,7 +33,7 @@ kill_port() {  # kill whatever is listening on a TCP port (and its children)
 cleanup() {
   trap - INT TERM EXIT   # avoid re-entry
   echo
-  say "Shutting down app (SQL Server stays up)…"
+  say "Shutting down app (PostgreSQL stays up)…"
   [ -n "$UI_PID" ]  && kill "$UI_PID"  2>/dev/null || true
   [ -n "$API_PID" ] && kill "$API_PID" 2>/dev/null || true
   kill_port 5173   # Vite UI
@@ -48,28 +50,24 @@ if ! colima status >/dev/null 2>&1; then
 fi
 ok "Colima running"
 
-# 2) SQL Server ----------------------------------------------------------------
-if docker ps --format '{{.Names}}' | grep -q "^${SQL_CONTAINER}$"; then
-  ok "SQL Server already running"
-elif docker ps -a --format '{{.Names}}' | grep -q "^${SQL_CONTAINER}$"; then
-  say "Starting SQL Server container…"
-  docker start "$SQL_CONTAINER" >/dev/null
+# 2) PostgreSQL ----------------------------------------------------------------
+if docker ps --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$"; then
+  ok "PostgreSQL already running"
+elif docker ps -a --format '{{.Names}}' | grep -q "^${DB_CONTAINER}$"; then
+  say "Starting PostgreSQL container…"
+  docker start "$DB_CONTAINER" >/dev/null
 else
-  say "Creating SQL Server container…"
-  docker run -d --name "$SQL_CONTAINER" \
-    -e 'ACCEPT_EULA=1' \
-    -e "MSSQL_SA_PASSWORD=${SA_PASS}" \
-    -p 1433:1433 \
-    --restart unless-stopped \
-    "$SQL_IMAGE" >/dev/null
+  say "Creating PostgreSQL container…"
+  docker run -d --name "$DB_CONTAINER"     -e "POSTGRES_USER=${DB_USER}"     -e "POSTGRES_PASSWORD=${DB_PASS}"     -e "POSTGRES_DB=${DB_NAME}"     -p 5432:5432     --restart unless-stopped     "$DB_IMAGE" >/dev/null
 fi
 
-say "Waiting for SQL Server to accept connections…"
+# Readiness is checked inside the container, so no psql client is needed on the host.
+say "Waiting for PostgreSQL to accept connections…"
 for i in $(seq 1 40); do
-  if sqlcmd -S localhost,1433 -U sa -P "$SA_PASS" -No -N disable -Q "SELECT 1" >/dev/null 2>&1; then
-    ok "SQL Server ready"; break
+  if docker exec "$DB_CONTAINER" pg_isready -U "$DB_USER" -d "$DB_NAME" >/dev/null 2>&1; then
+    ok "PostgreSQL ready"; break
   fi
-  [ "$i" -eq 40 ] && { echo "SQL Server did not come up in time."; exit 1; }
+  [ "$i" -eq 40 ] && { echo "PostgreSQL did not come up in time."; exit 1; }
   sleep 2
 done
 

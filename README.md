@@ -20,12 +20,16 @@ For full product details see `docs/prd.md`. For coding conventions see `CLAUDE.m
 ---
 
 ## ⚙️ Requirements
-- **SQL Server 2022 Developer Edition**
+- **Docker** (PostgreSQL runs in a container — `brew install colima docker` on macOS)
 - **.NET SDK 10.x**
-- **VS Code** with extensions:
-  - SQL Server (mssql)
-  - SQL Database Projects
-  - C# Dev Kit
+- **Node 22.x** (for the UI)
+- **VS Code** with the **C# Dev Kit** extension
+
+> The data layer targets **PostgreSQL**, not SQL Server. See
+> [`deploy/README.md`](deploy/README.md) for why, and for self-hosting.
+> The `db/PantryScanDB/*.sql` files are the legacy SQL Server schema project and
+> are no longer what the app creates — `EnsureSchemaAsync` in `Program.cs` is
+> authoritative and builds the schema on first run.
 
 ---
 
@@ -36,7 +40,7 @@ From the repo root:
 ```bash
 ./start.sh          # or, from anywhere: pantryscan
 ```
-This boots SQL Server (in Colima), the .NET API, and the React UI, then opens the app in your browser. Press **Ctrl+C** to stop the API and UI — SQL Server keeps running in the background. First run requires Colima (`brew install colima docker`).
+This boots PostgreSQL (in Colima), the .NET API, and the React UI, then opens the app in your browser. Press **Ctrl+C** to stop the API and UI — PostgreSQL keeps running in the background. First run requires Colima (`brew install colima docker`).
 
 ---
 
