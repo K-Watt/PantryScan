@@ -24,7 +24,8 @@ public class ItemsTests : IClassFixture<WebAppFixture>
         response.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        body.GetProperty("itemId").GetInt32().Should().BeGreaterThan(0);
+        // POST /items responds with { id, name, quantity }.
+        body.GetProperty("id").GetInt32().Should().BeGreaterThan(0);
     }
 
     [Fact]
@@ -60,7 +61,7 @@ public class ItemsTests : IClassFixture<WebAppFixture>
     [Fact]
     public async Task DeleteItem_NonExistentId_Returns404()
     {
-        var response = await _client.DeleteAsync("/items/999999");
+        var response = await _client.DeleteAsync("/items/999999?confirm=true");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

@@ -1,0 +1,84 @@
+name: CI
+
+# Runs on GitHub's hosted runners - they have no access to the Pi or the home
+# network. The Pi polls this workflow's result and only deploys green commits.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  api:
+    name: API build + tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: pantryscandb_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore api/PantryScan.Tests/PantryScan.Tests.csproj
+
+      - name: Build
+        run: dotnet build api/PantryScan.Tests/PantryScan.Tests.csproj --no-restore -c Release
+
+      - name: Test
+        env:
+          PANTRYSCAN_TEST_DB: "Host=localhost;Port=5432;Database=pantryscandb_test;Username=postgres;Password=postgres;"
+        run: dotnet test api/PantryScan.Tests/PantryScan.Tests.csproj --no-build -c Release --logger "console;verbosity=normal"
+
+  ui:
+    name: UI build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: ui-react/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: ui-react
+
+      # Catches TypeScript errors as well as bundling failures, since the
+      # build script runs `tsc -b` before vite.
+      - name: Build
+        run: npm run build
+        working-directory: ui-react
+
+  docker:
+    name: Container images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Proves the images the Pi will build actually build, before the Pi tries.
+      - name: Build API image
+        run: docker build -f deploy/Dockerfile.api -t pantryscan-api:ci .
+
+      - name: Build UI image
+        run: docker build -f deploy/Dockerfile.ui -t pantryscan-ui:ci .

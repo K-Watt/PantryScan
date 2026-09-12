@@ -41,7 +41,9 @@ public class RecipesTests : IClassFixture<WebAppFixture>
     [Fact]
     public async Task DeleteRecipe_NonExistentId_Returns404()
     {
-        var response = await _client.DeleteAsync("/recipes/999999");
+        // Destructive endpoints require confirm=true; without it the API returns 400
+        // before ever checking whether the recipe exists.
+        var response = await _client.DeleteAsync("/recipes/999999?confirm=true");
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }

@@ -56,8 +56,8 @@ public class AuditLogTests : IntegrationTestBase
         second.StatusCode.Should().Be(HttpStatusCode.Created);
 
         // Both should return itemIds, and they should be different
-        var firstId = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("itemId").GetInt32();
-        var secondId = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("itemId").GetInt32();
+        var firstId = (await first.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
+        var secondId = (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetInt32();
         firstId.Should().NotBe(secondId);
     }
 

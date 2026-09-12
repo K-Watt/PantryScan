@@ -24,7 +24,8 @@ public class ItemsIntegrationTests : IntegrationTestBase
         createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
         var created = await createResponse.Content.ReadFromJsonAsync<JsonElement>();
-        var itemId = created.GetProperty("itemId").GetInt32();
+        // POST /items and GET /items both expose the key as "id".
+        var itemId = created.GetProperty("id").GetInt32();
         itemId.Should().BeGreaterThan(0);
 
         // 2. Confirm the item exists in GET /items
@@ -35,7 +36,7 @@ public class ItemsIntegrationTests : IntegrationTestBase
         items.ValueKind.Should().Be(JsonValueKind.Array);
 
         var found = items.EnumerateArray()
-            .Any(i => i.TryGetProperty("itemId", out var idProp) && idProp.GetInt32() == itemId);
+            .Any(i => i.TryGetProperty("id", out var idProp) && idProp.GetInt32() == itemId);
         found.Should().BeTrue("the newly created item should appear in the list");
 
         // 3. Update the quantity
@@ -44,11 +45,11 @@ public class ItemsIntegrationTests : IntegrationTestBase
         updateResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // 4. Delete the item
-        var deleteResponse = await Client.DeleteAsync($"/items/{itemId}");
+        var deleteResponse = await Client.DeleteAsync($"/items/{itemId}?confirm=true");
         deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
 
         // 5. Confirm the item is gone (second delete should return 404)
-        var secondDeleteResponse = await Client.DeleteAsync($"/items/{itemId}");
+        var secondDeleteResponse = await Client.DeleteAsync($"/items/{itemId}?confirm=true");
         secondDeleteResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 }
