@@ -58,3 +58,24 @@ sudo mkdir -p /path/to/pgdata && sudo chattr +C /path/to/pgdata
 `deploy/sync.sh` polls `origin/main`, and rebuilds and restarts only when the
 commit changes. It builds before swapping, so a broken commit leaves the running
 version untouched. Install it with the bundled systemd timer.
+
+## Installing the auto-deploy timer
+
+```bash
+sudo cp deploy/pantryscan-sync.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now pantryscan-sync.timer
+```
+
+Check what it has done:
+
+```bash
+sudo tail -f /var/log/pantryscan-deploy.log
+systemctl list-timers pantryscan-sync.timer
+```
+
+Force a deploy without waiting for the next poll:
+
+```bash
+sudo systemctl start pantryscan-sync.service
+```
