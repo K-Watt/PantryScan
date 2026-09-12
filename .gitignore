@@ -24,3 +24,6 @@ packages/
 
 # Local publish artifacts
 db/publish/
+
+# Deployment secrets
+deploy/.env

@@ -1,0 +1,46 @@
+# PantryScan self-hosted deployment (Raspberry Pi / any Docker host).
+#   cp .env.example .env   # then edit PG_PASSWORD and PGDATA_DIR
+#   docker compose up -d --build
+name: pantryscan
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: pantryscan_db
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_USER: pantryscan
+      POSTGRES_DB: pantryscandb
+    volumes:
+      - ${PGDATA_DIR}:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pantryscan -d pantryscandb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    container_name: pantryscan_api
+    environment:
+      ConnectionStrings__Sql: "Host=db;Port=5432;Database=pantryscandb;Username=pantryscan;Password=${PG_PASSWORD};"
+    ports:
+      - "5169:5169"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.ui
+    container_name: pantryscan_ui
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+    restart: unless-stopped

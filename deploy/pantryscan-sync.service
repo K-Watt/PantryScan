@@ -1,0 +1,9 @@
+[Unit]
+Description=PantryScan: redeploy when origin/main changes
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/pantryscan/deploy/sync.sh
+# Environment=PANTRYSCAN_BRANCH=main

@@ -1,0 +1,18 @@
+# PantryScan API — built for linux/arm64 (Raspberry Pi 5) as well as amd64.
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY api/PantryScan.Api/ ./PantryScan.Api/
+WORKDIR /src/PantryScan.Api
+RUN dotnet restore && dotnet publish -c Release -o /app --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+# Npgsql probes for GSSAPI/Kerberos on startup. Without this the runtime image
+# logs a harmless but alarming "libgssapi_krb5.so.2: cannot open shared object file".
+RUN apt-get update && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build /app .
+ENV ASPNETCORE_URLS=http://+:5169
+ENV ASPNETCORE_ENVIRONMENT=Production
+EXPOSE 5169
+ENTRYPOINT ["dotnet", "PantryScan.Api.dll"]
